@@ -17,15 +17,18 @@ import {
 import db, { type Job, type Shop, type Product, type Account, type Application, type ShopRequest } from "./db.js";
 import { POSTINO_ROLE_ID, STAFF_ROLE_ID, memberIsStaff } from "./utils.js";
 
+// ─── Canali bando per lavori speciali ─────────────────────────────────────────
 const BANDO_CHANNELS: Record<string, string> = {
   polizia:  "1521494201513283744",
   medici:   "1521494211231482037",
   pompieri: "1521494206332272660",
 };
 
+// ─── handleButton ─────────────────────────────────────────────────────────────
 export async function handleButton(interaction: ButtonInteraction) {
   const [action, ...args] = interaction.customId.split(":");
 
+  // ── Apri conto ────────────────────────────────────────────────────────────
   if (action === "banca_apri") {
     const existing = db.prepare("SELECT userId FROM accounts WHERE userId = ?").get(interaction.user.id);
     if (existing) {
@@ -45,6 +48,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     });
   }
 
+  // ── Crea PIN (modal) ───────────────────────────────────────────────────────
   if (action === "banca_pin") {
     const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id);
     if (!account) {
@@ -68,6 +72,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.showModal(modal);
   }
 
+  // ── Crea Carta (diretta) ───────────────────────────────────────────────────
   if (action === "banca_carta") {
     const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id);
     if (!account) {
@@ -99,6 +104,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── Apri tendina candidatura lavori ────────────────────────────────────────
   if (action === "candidatura_open") {
     const jobs = db.prepare("SELECT * FROM jobs ORDER BY name ASC").all() as Job[];
 
@@ -122,10 +128,13 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ components: [row], ephemeral: true });
   }
 
+  // ── Accetta candidatura (DM al proprietario o allo staff) ──────────────────
   if (action === "job_accept") {
     const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
-    if (!guild || interaction.user.id !== guild.ownerId) {
-      return interaction.reply({ content: "❌ Solo il proprietario può accettare candidature.", ephemeral: true });
+    const invoker = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+    const authorized = !!guild && (interaction.user.id === guild.ownerId || (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false));
+    if (!authorized) {
+      return interaction.reply({ content: "❌ Solo il proprietario o lo staff possono accettare candidature.", ephemeral: true });
     }
 
     const appId = args[0];
@@ -185,10 +194,13 @@ export async function handleButton(interaction: ButtonInteraction) {
     return;
   }
 
+  // ── Rifiuta candidatura ────────────────────────────────────────────────────
   if (action === "job_reject") {
     const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
-    if (!guild || interaction.user.id !== guild.ownerId) {
-      return interaction.reply({ content: "❌ Solo il proprietario può rifiutare candidature.", ephemeral: true });
+    const invoker = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+    const authorized = !!guild && (interaction.user.id === guild.ownerId || (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false));
+    if (!authorized) {
+      return interaction.reply({ content: "❌ Solo il proprietario o lo staff possono rifiutare candidature.", ephemeral: true });
     }
 
     const appId = args[0];
@@ -224,6 +236,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return;
   }
 
+  // ── Apri tendina negozi ────────────────────────────────────────────────────
   if (action === "negozio_open") {
     const shops = db.prepare("SELECT * FROM shops ORDER BY name ASC").all() as Shop[];
     if (shops.length === 0) {
@@ -244,6 +257,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ components: [row], ephemeral: true });
   }
 
+  // ── Richiedi apertura negozio (apre modal) ─────────────────────────────────
   if (action === "negozio_richiedi") {
     const modal = new ModalBuilder()
       .setCustomId("negozio_richiedi_modal")
@@ -267,6 +281,34 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.showModal(modal);
   }
 
+  // ── Crea prodotto (solo dipendenti/proprietari di un negozio) ──────────────
+  if (action === "creaprodotto_open") {
+    const ownedShop = db.prepare("SELECT id FROM shops WHERE ownerId = ?").get(interaction.user.id);
+    if (!ownedShop) {
+      return interaction.reply({ content: "❌ Solo i dipendenti (proprietari di un negozio) possono creare prodotti.", ephemeral: true });
+    }
+
+    const shops = db.prepare("SELECT * FROM shops ORDER BY name ASC").all() as Shop[];
+    if (shops.length === 0) {
+      return interaction.reply({ content: "❌ Nessun negozio disponibile al momento.", ephemeral: true });
+    }
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId("creaprodotto_select_shop")
+      .setPlaceholder("Scegli il negozio del prodotto...")
+      .addOptions(
+        shops.slice(0, 25).map((s) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(s.name)
+            .setValue(String(s.id))
+            .setEmoji("🛍️")
+        )
+      );
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+    return interaction.reply({ content: "Seleziona il negozio a cui aggiungere il prodotto:", components: [row], ephemeral: true });
+  }
+
+  // ── Approva / Rifiuta richiesta apertura negozio (solo staff) ──────────────
   if (action === "negozio_richiesta_approva" || action === "negozio_richiesta_rifiuta") {
     const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
     if (!guild || !memberIsStaff(interaction.member, interaction.user.id, guild.ownerId)) {
@@ -350,6 +392,101 @@ export async function handleButton(interaction: ButtonInteraction) {
     }
   }
 
+  // ── Dimettiti: apre conferma prima di lasciare il lavoro ───────────────────
+  if (action === "dimissioni_open") {
+    const emp = db.prepare(`
+      SELECT e.*, j.name AS jobName, j.roleId, j.id AS jobId
+      FROM employees e
+      JOIN jobs j ON j.id = e.jobId
+      WHERE e.userId = ?
+      LIMIT 1
+    `).get(interaction.user.id) as { userId: string; jobId: number; jobName: string; roleId: string } | undefined;
+
+    if (!emp) {
+      return interaction.reply({ content: "❌ Non sei assunto in nessun lavoro.", ephemeral: true });
+    }
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`dimissioni_confirm:${emp.jobId}`)
+        .setLabel("Conferma Dimissioni")
+        .setEmoji("⚠️")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("dimissioni_cancel")
+        .setLabel("Annulla")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    return interaction.reply({
+      content: `⚠️ Sei sicuro di voler dare le dimissioni da **${emp.jobName}**? Ti verrà tolto il ruolo e perderai il posto di lavoro.`,
+      components: [row],
+      ephemeral: true,
+    });
+  }
+
+  // ── Dimettiti: conferma → rimuove dal lavoro e toglie il ruolo ─────────────
+  if (action === "dimissioni_confirm") {
+    const jobId = parseInt(args[0]!);
+    const userId = interaction.user.id;
+
+    const emp = db.prepare(`
+      SELECT e.*, j.name AS jobName, j.roleId
+      FROM employees e
+      JOIN jobs j ON j.id = e.jobId
+      WHERE e.userId = ? AND e.jobId = ?
+    `).get(userId, jobId) as { userId: string; jobId: number; jobName: string; roleId: string } | undefined;
+
+    if (!emp) {
+      return interaction.update({ content: "❌ Non risulti più assunto in questo lavoro.", components: [], embeds: [] });
+    }
+
+    db.prepare("DELETE FROM employees WHERE userId = ? AND jobId = ?").run(userId, jobId);
+    db.prepare("UPDATE jobs SET currentSlots = MAX(0, currentSlots - 1) WHERE id = ?").run(jobId);
+
+    const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
+    if (guild) {
+      try {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member) await member.roles.remove(emp.roleId).catch(() => null);
+      } catch { /* ignora se il ruolo non esiste più */ }
+    }
+
+    return interaction.update({
+      content: `📋 Hai dato le dimissioni da **${emp.jobName}**. Sei ora disoccupato e il ruolo ti è stato rimosso.`,
+      components: [],
+      embeds: [],
+    });
+  }
+
+  // ── Dimettiti: annulla ──────────────────────────────────────────────────────
+  if (action === "dimissioni_cancel") {
+    return interaction.update({ content: "✅ Dimissioni annullate.", components: [], embeds: [] });
+  }
+
+  // ── Elimina prodotto: apre tendina dei propri negozi (solo proprietari) ────
+  if (action === "eliminaprodotto_open") {
+    const ownedShops = db.prepare("SELECT * FROM shops WHERE ownerId = ? ORDER BY name ASC").all(interaction.user.id) as Shop[];
+    if (ownedShops.length === 0) {
+      return interaction.reply({ content: "❌ Non possiedi nessun negozio.", ephemeral: true });
+    }
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId("eliminaprodotto_select_shop")
+      .setPlaceholder("Scegli il negozio...")
+      .addOptions(
+        ownedShops.slice(0, 25).map((s) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(s.name)
+            .setValue(String(s.id))
+            .setEmoji("🛍️")
+        )
+      );
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+    return interaction.reply({ content: "Seleziona il negozio da cui eliminare un prodotto:", components: [row], ephemeral: true });
+  }
+
+  // ── Pannello licenziamento: apre tendina dipendenti (solo staff) ───────────
   if (action === "licenziamento_open") {
     const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
     if (!guild || !memberIsStaff(interaction.member, interaction.user.id, guild.ownerId)) {
@@ -398,6 +535,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     });
   }
 
+  // ── Acquista auto ──────────────────────────────────────────────────────────
   if (action === "auto_buy") {
     const carId = parseInt(args[0]);
     const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id) as Account | undefined;
@@ -426,6 +564,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── Acquista casa ──────────────────────────────────────────────────────────
   if (action === "house_buy") {
     const houseId = parseInt(args[0]);
     const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id) as Account | undefined;
@@ -454,6 +593,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── Acquista prodotto → apre modal PIN + username Roblox ──────────────────
   if (action === "product_buy") {
     const productId = args[0];
     const product = db.prepare("SELECT * FROM products WHERE id = ?").get(parseInt(productId)) as Product | undefined;
@@ -485,6 +625,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.showModal(modal);
   }
 
+  // ── Apri modal pagamento ───────────────────────────────────────────────────
   if (action === "pagamento_open") {
     const modal = new ModalBuilder()
       .setCustomId("pagamento_modal")
@@ -521,10 +662,12 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 }
 
+// ─── handleSelectMenu ─────────────────────────────────────────────────────────
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction) {
   const [action] = interaction.customId.split(":");
   const values = interaction.values;
 
+  // ── Candidatura lavoro ─────────────────────────────────────────────────────
   if (action === "candidatura_select") {
     const jobId = parseInt(values[0]);
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId) as Job | undefined;
@@ -589,47 +732,149 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 
       const appId = appResult.lastInsertRowid;
 
+      const embed = new EmbedBuilder()
+        .setTitle(`📬 Nuova Candidatura — ${job.name}`)
+        .setColor(0x5865F2)
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .addFields(
+          { name: "Candidato", value: `<@${userId}> (${interaction.user.username})`, inline: false },
+          { name: "Lavoro", value: job.name, inline: true },
+          { name: "Stipendio", value: `€${job.salary}`, inline: true },
+          { name: "Posti rimanenti", value: job.maxSlots ? `${job.maxSlots - job.currentSlots}` : "Illimitati", inline: true },
+          { name: "Server", value: guild.name, inline: true },
+          { name: "Data", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        )
+        .setTimestamp();
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`job_accept:${appId}`)
+          .setLabel("✅ Accetta")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`job_reject:${appId}`)
+          .setLabel("❌ Rifiuta")
+          .setStyle(ButtonStyle.Danger),
+      );
+
+      let reached = 0;
       try {
         const owner = await guild.fetchOwner();
-
-        const embed = new EmbedBuilder()
-          .setTitle(`📬 Nuova Candidatura — ${job.name}`)
-          .setColor(0x5865F2)
-          .setThumbnail(interaction.user.displayAvatarURL())
-          .addFields(
-            { name: "Candidato", value: `<@${userId}> (${interaction.user.username})`, inline: false },
-            { name: "Lavoro", value: job.name, inline: true },
-            { name: "Stipendio", value: `€${job.salary}`, inline: true },
-            { name: "Posti rimanenti", value: job.maxSlots ? `${job.maxSlots - job.currentSlots}` : "Illimitati", inline: true },
-            { name: "Server", value: guild.name, inline: true },
-            { name: "Data", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-          )
-          .setTimestamp();
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`job_accept:${appId}`)
-            .setLabel("✅ Accetta")
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`job_reject:${appId}`)
-            .setLabel("❌ Rifiuta")
-            .setStyle(ButtonStyle.Danger),
-        );
-
         await owner.send({ embeds: [embed], components: [row] });
-      } catch {
+        reached++;
+      } catch { /* il proprietario ha i DM chiusi */ }
+
+      try {
+        await guild.members.fetch();
+        const staffMembers = guild.members.cache.filter((m) => m.roles.cache.has(STAFF_ROLE_ID) && m.id !== guild.ownerId);
+        for (const [, member] of staffMembers) {
+          const sent = await member.send({ embeds: [embed], components: [row] }).then(() => true).catch(() => false);
+          if (sent) reached++;
+        }
+      } catch { /* ignore */ }
+
+      if (reached === 0) {
         db.prepare("DELETE FROM applications WHERE id = ?").run(appId);
-        return interaction.reply({ content: "❌ Impossibile contattare il proprietario. Contattalo direttamente.", ephemeral: true });
+        return interaction.reply({ content: "❌ Impossibile contattare il proprietario o lo staff (DM chiusi). Contattali direttamente.", ephemeral: true });
       }
 
       return interaction.reply({
-        content: `✅ La tua candidatura per **${job.name}** è stata inviata! Attendi la risposta del proprietario.`,
+        content: `✅ La tua candidatura per **${job.name}** è stata inviata! Attendi la risposta del proprietario o dello staff.`,
         ephemeral: true,
       });
     }
   }
 
+  // ── Crea prodotto: negozio scelto, apri modal ───────────────────────────────
+  if (action === "creaprodotto_select_shop") {
+    const shopId = parseInt(values[0]!);
+    const shop = db.prepare("SELECT * FROM shops WHERE id = ?").get(shopId) as Shop | undefined;
+    if (!shop) {
+      return interaction.reply({ content: "❌ Negozio non trovato.", ephemeral: true });
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(`creaprodotto_modal:${shopId}`)
+      .setTitle(`Nuovo Prodotto — ${shop.name}`);
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("nome")
+          .setLabel("Nome del prodotto")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("prezzo")
+          .setLabel("Prezzo (€)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("descrizione")
+          .setLabel("Descrizione")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+      ),
+    );
+    return interaction.showModal(modal);
+  }
+
+  // ── Elimina prodotto: negozio scelto, mostra tendina dei suoi prodotti ─────
+  if (action === "eliminaprodotto_select_shop") {
+    const shopId = parseInt(values[0]!);
+    const shop = db.prepare("SELECT * FROM shops WHERE id = ? AND ownerId = ?").get(shopId, interaction.user.id) as Shop | undefined;
+    if (!shop) {
+      return interaction.reply({ content: "❌ Negozio non trovato o non ti appartiene.", ephemeral: true });
+    }
+
+    const products = db.prepare("SELECT * FROM products WHERE shopId = ? ORDER BY name ASC").all(shopId) as Product[];
+    if (products.length === 0) {
+      return interaction.reply({ content: `❌ Il negozio **${shop.name}** non ha prodotti da eliminare.`, ephemeral: true });
+    }
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId("eliminaprodotto_select_product")
+      .setPlaceholder("Scegli il prodotto da eliminare...")
+      .addOptions(
+        products.slice(0, 25).map((p) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(`${p.name} — €${p.price}`)
+            .setValue(String(p.id))
+            .setEmoji("🗑️")
+        )
+      );
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+    return interaction.reply({ content: `Seleziona il prodotto da eliminare da **${shop.name}**:`, components: [row], ephemeral: true });
+  }
+
+  // ── Elimina prodotto: prodotto scelto, elimina dal DB ──────────────────────
+  if (action === "eliminaprodotto_select_product") {
+    const productId = parseInt(values[0]!);
+    const product = db.prepare(`
+      SELECT p.*, s.name as shopName, s.ownerId as shopOwnerId FROM products p
+      JOIN shops s ON s.id = p.shopId
+      WHERE p.id = ?
+    `).get(productId) as (Product & { shopName: string; shopOwnerId: string | null }) | undefined;
+
+    if (!product) {
+      return interaction.reply({ content: "❌ Prodotto non trovato (forse già eliminato).", ephemeral: true });
+    }
+    if (product.shopOwnerId !== interaction.user.id) {
+      return interaction.reply({ content: "❌ Non puoi eliminare prodotti di un negozio che non ti appartiene.", ephemeral: true });
+    }
+
+    db.prepare("DELETE FROM products WHERE id = ?").run(productId);
+
+    return interaction.reply({
+      content: `✅ Prodotto **${product.name}** eliminato da **${product.shopName}**.`,
+      ephemeral: true,
+    });
+  }
+
+  // ── Scelta negozio: mostra i prodotti con immagine e bottoni d'acquisto ────
   if (action === "negozio_select") {
     const shopId = parseInt(values[0]);
     const shop = db.prepare("SELECT * FROM shops WHERE id = ?").get(shopId) as Shop | undefined;
@@ -674,6 +919,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return interaction.reply({ embeds, components: rows.slice(0, 5), ephemeral: true });
   }
 
+  // ── Licenziamento ──────────────────────────────────────────────────────────
   if (action === "licenziamento_select") {
     const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId!).catch(() => null);
     if (!guild || !memberIsStaff(interaction.member, interaction.user.id, guild.ownerId)) {
@@ -710,251 +956,10 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   }
 }
 
+// ─── handleModal ──────────────────────────────────────────────────────────────
 export async function handleModal(interaction: ModalSubmitInteraction) {
   const [action, ...args] = interaction.customId.split(":");
 
+  // ── Richiesta apertura negozio ──────────────────────────────────────────────
   if (action === "negozio_richiedi_modal") {
-    const shopName = interaction.fields.getTextInputValue("shop_name").trim();
-    const shopDesc = interaction.fields.getTextInputValue("shop_desc")?.trim() || "Nessuna descrizione fornita";
-
-    const existing = db.prepare("SELECT id FROM shops WHERE name = ? COLLATE NOCASE").get(shopName);
-    if (existing) {
-      return interaction.reply({ content: `❌ Esiste già un negozio chiamato "${shopName}".`, ephemeral: true });
-    }
-
-    const guild = interaction.guild!;
-    await interaction.deferReply({ ephemeral: true });
-
-    const parentId = interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null;
-
-    const channel = await guild.channels.create({
-      name: `richiesta-negozio-${interaction.user.username}`.toLowerCase().slice(0, 90),
-      type: ChannelType.GuildText,
-      parent: parentId ?? undefined,
-      permissionOverwrites: [
-        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        { id: STAFF_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-      ],
-    }).catch(() => null);
-
-    if (!channel) {
-      return interaction.editReply({ content: "❌ Impossibile creare il canale della richiesta. Contatta lo staff." });
-    }
-
-    const result = db.prepare(
-      "INSERT INTO shop_requests (userId, shopName, guildId, channelId) VALUES (?, ?, ?, ?)"
-    ).run(interaction.user.id, shopName, guild.id, channel.id);
-    const requestId = result.lastInsertRowid;
-
-    const embed = new EmbedBuilder()
-      .setTitle("📝 Nuova Richiesta di Apertura Negozio")
-      .setColor(0x5865F2)
-      .setThumbnail(interaction.user.displayAvatarURL())
-      .addFields(
-        { name: "Richiedente", value: `<@${interaction.user.id}>`, inline: true },
-        { name: "Nome Negozio", value: shopName, inline: true },
-        { name: "Descrizione", value: shopDesc, inline: false },
-      )
-      .setTimestamp();
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`negozio_richiesta_approva:${requestId}`).setLabel("✅ Approva").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`negozio_richiesta_rifiuta:${requestId}`).setLabel("❌ Rifiuta").setStyle(ButtonStyle.Danger),
-    );
-
-    await channel.send({
-      content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
-      embeds: [embed],
-      components: [row],
-    });
-
-    return interaction.editReply({ content: `✅ Richiesta inviata! Discutine con lo staff nel canale ${channel}.` });
-  }
-
-  if (action === "product_buy_modal") {
-    const productId = parseInt(args[0]!);
-    const pin = interaction.fields.getTextInputValue("pin").trim();
-    const robloxUsername = interaction.fields.getTextInputValue("roblox_username").trim();
-
-    const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id) as Account | undefined;
-    if (!account) {
-      return interaction.reply({ content: "❌ Non hai un conto bancario. Usa `/apriconto`.", ephemeral: true });
-    }
-    if (!account.pin || account.pin !== pin) {
-      return interaction.reply({ content: "❌ PIN errato.", ephemeral: true });
-    }
-
-    const product = db.prepare(`
-      SELECT p.*, s.name as shopName, s.ownerId as shopOwnerId FROM products p
-      JOIN shops s ON s.id = p.shopId
-      WHERE p.id = ?
-    `).get(productId) as (Product & { shopName: string; shopOwnerId: string | null }) | undefined;
-    if (!product) {
-      return interaction.reply({ content: "❌ Prodotto non trovato.", ephemeral: true });
-    }
-    const debit = db.prepare(
-      "UPDATE accounts SET balance = balance - ? WHERE userId = ? AND balance >= ?"
-    ).run(product.price, interaction.user.id, product.price);
-
-    if (debit.changes === 0) {
-      const fresh = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id) as Account;
-      return interaction.reply({ content: `❌ Saldo insufficiente. Ti servono **€${product.price}**, hai **€${fresh.balance}**.`, ephemeral: true });
-    }
-
-    const newBalance = (db.prepare("SELECT balance FROM accounts WHERE userId = ?").get(interaction.user.id) as { balance: number }).balance;
-
-    const buyerEmbed = new EmbedBuilder()
-      .setTitle("✅ Acquisto Completato!")
-      .setColor(0x57F287)
-      .addFields(
-        { name: "Prodotto", value: product.name, inline: true },
-        { name: "Negozio", value: product.shopName, inline: true },
-        { name: "Pagato", value: `€${product.price}`, inline: true },
-        { name: "Nuovo Saldo", value: `€${newBalance}`, inline: true },
-        { name: "Username Roblox", value: robloxUsername, inline: true },
-      )
-      .setDescription("📦 Presentati al prossimo RP per ritirare il tuo pacco!")
-      .setTimestamp();
-    if (product.imageUrl) buyerEmbed.setThumbnail(product.imageUrl);
-
-    await interaction.reply({ embeds: [buyerEmbed], ephemeral: true });
-
-    const guild = interaction.guild!;
-
-    try {
-      const ownerId = product.shopOwnerId ?? guild.ownerId;
-      const ownerUser = await interaction.client.users.fetch(ownerId).catch(() => null);
-      if (ownerUser) {
-        await ownerUser.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("💰 Nuovo Acquisto nel Tuo Negozio!")
-              .setColor(0x57F287)
-              .addFields(
-                { name: "Prodotto", value: product.name, inline: true },
-                { name: "Negozio", value: product.shopName, inline: true },
-                { name: "Importo ricevuto", value: `€${product.price}`, inline: true },
-                { name: "Acquirente", value: `<@${interaction.user.id}> (${interaction.user.username})`, inline: false },
-                { name: "Username Roblox acquirente", value: robloxUsername, inline: true },
-              )
-              .setTimestamp(),
-          ],
-        }).catch(() => null);
-      }
-    } catch { /* ignore */ }
-
-    try {
-      await interaction.user.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("📦 Il tuo ordine è in arrivo!")
-            .setDescription(`Hai acquistato **${product.name}** dal negozio **${product.shopName}**.\n\n📅 Presentati al prossimo RP per ritirare il pacco!`)
-            .setColor(0x5865F2)
-            .addFields(
-              { name: "Prodotto", value: product.name, inline: true },
-              { name: "Username Roblox", value: robloxUsername, inline: true },
-            )
-            .setTimestamp(),
-        ],
-      }).catch(() => null);
-    } catch { /* ignore */ }
-
-    try {
-      const postinoRole = await guild.roles.fetch(POSTINO_ROLE_ID).catch(() => null);
-      if (postinoRole) {
-        await guild.members.fetch();
-        const postinoEmbed = new EmbedBuilder()
-          .setTitle("📫 Nuova Consegna!")
-          .setDescription("Consegna al prossimo RP!")
-          .setColor(0xFEE75C)
-          .addFields(
-            { name: "Prodotto da consegnare", value: product.name, inline: true },
-            { name: "Negozio", value: product.shopName, inline: true },
-            { name: "Consegna a (Roblox)", value: robloxUsername, inline: true },
-            { name: "Acquirente Discord", value: `<@${interaction.user.id}>`, inline: true },
-          )
-          .setTimestamp();
-        for (const [, member] of postinoRole.members) {
-          await member.send({ embeds: [postinoEmbed] }).catch(() => null);
-        }
-      }
-    } catch { /* ignore */ }
-
-    return;
-  }
-
-  if (action === "banca_pin_modal") {
-    const pin = interaction.fields.getTextInputValue("pin").trim();
-    if (!/^\d{4}$/.test(pin)) {
-      return interaction.reply({ content: "❌ Il PIN deve essere composto da 4 cifre numeriche.", ephemeral: true });
-    }
-    const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id);
-    if (!account) {
-      return interaction.reply({ content: "❌ Non hai un conto bancario.", ephemeral: true });
-    }
-    db.prepare("UPDATE accounts SET pin = ? WHERE userId = ?").run(pin, interaction.user.id);
-    return interaction.reply({ content: "✅ PIN impostato con successo!", ephemeral: true });
-  }
-
-  if (action === "pagamento_modal") {
-    const recipientId = interaction.fields.getTextInputValue("recipient_id").trim();
-    const amountStr = interaction.fields.getTextInputValue("amount").trim();
-    const causale = interaction.fields.getTextInputValue("causale").trim() || "Nessuna causale";
-
-    const amount = parseInt(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-      return interaction.reply({ content: "❌ Importo non valido.", ephemeral: true });
-    }
-
-    const senderAccount = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id) as Account | undefined;
-    if (!senderAccount) {
-      return interaction.reply({ content: "❌ Non hai un conto bancario. Usa `/apriconto`.", ephemeral: true });
-    }
-    if (senderAccount.balance < amount) {
-      return interaction.reply({ content: `❌ Saldo insufficiente. Hai **€${senderAccount.balance}**.`, ephemeral: true });
-    }
-
-    const recipientAccount = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(recipientId) as Account | undefined;
-    if (!recipientAccount) {
-      return interaction.reply({ content: "❌ Il destinatario non ha un conto bancario.", ephemeral: true });
-    }
-    if (recipientId === interaction.user.id) {
-      return interaction.reply({ content: "❌ Non puoi inviare denaro a te stesso.", ephemeral: true });
-    }
-
-    db.prepare("UPDATE accounts SET balance = balance - ? WHERE userId = ?").run(amount, interaction.user.id);
-    db.prepare("UPDATE accounts SET balance = balance + ? WHERE userId = ?").run(amount, recipientId);
-
-    const embed = new EmbedBuilder()
-      .setTitle("💸 Pagamento Inviato")
-      .setColor(0x57F287)
-      .addFields(
-        { name: "Mittente", value: `<@${interaction.user.id}>`, inline: true },
-        { name: "Destinatario", value: `<@${recipientId}>`, inline: true },
-        { name: "Importo", value: `€${amount}`, inline: true },
-        { name: "Causale", value: causale, inline: false },
-        { name: "Nuovo Saldo", value: `€${senderAccount.balance - amount}`, inline: true },
-      )
-      .setTimestamp();
-
-    try {
-      const recipient = await interaction.client.users.fetch(recipientId);
-      await recipient.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("💰 Pagamento Ricevuto!")
-            .setColor(0x57F287)
-            .addFields(
-              { name: "Da", value: `<@${interaction.user.id}> (${interaction.user.username})`, inline: false },
-              { name: "Importo", value: `€${amount}`, inline: true },
-              { name: "Causale", value: causale, inline: true },
-            )
-            .setTimestamp(),
-        ],
-      }).catch(() => null);
-    } catch { /* ignore */ }
-
-    return interaction.reply({ embeds: [embed], ephemeral: true });
-  }
-}
+    const s **…**
