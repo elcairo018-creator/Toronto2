@@ -1,0 +1,6 @@
+node_modules/
+dist/
+bot.db
+bot.db-journal
+.env
+*.log
