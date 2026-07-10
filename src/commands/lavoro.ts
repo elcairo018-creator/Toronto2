@@ -11,6 +11,7 @@ import {
 import db, { type Job, type Employee } from "../db.js";
 import { isAdmin, LAVORI_CHANNEL_ID, sendPanel } from "../utils.js";
 
+// ── /stipendio ────────────────────────────────────────────────────────────────
 export const stipendioData = new SlashCommandBuilder()
   .setName("stipendio")
   .setDescription("Ritira il tuo stipendio");
@@ -61,6 +62,9 @@ export async function stipendioHandler(interaction: ChatInputCommandInteraction)
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
+// ── /pannellolavori ───────────────────────────────────────────────────────────
+// Solo proprietario: pubblica un messaggio con un bottone "Candidati ai Lavori".
+// Cliccando si apre una tendina (StringSelectMenu) con solo i nomi dei lavori.
 export const pannellolavoriData = new SlashCommandBuilder()
   .setName("pannellolavori")
   .setDescription("Pubblica il pannello per candidarsi a un lavoro (solo proprietario)");
@@ -88,6 +92,9 @@ export async function pannellolavoriHandler(interaction: ChatInputCommandInterac
   await sendPanel(interaction, { embeds: [embed], components: [row] });
 }
 
+// ── /crealavoro (unifica creazione + aggiornamento stipendio) ─────────────────
+// Se il lavoro NON esiste → lo crea.
+// Se il lavoro ESISTE GIÀ → aggiorna stipendio e/o posti.
 export const crealavoriData = new SlashCommandBuilder()
   .setName("crealavoro")
   .setDescription("Crea un lavoro o aggiorna stipendio/posti (solo proprietario)")
@@ -109,6 +116,7 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
   const existing = db.prepare("SELECT * FROM jobs WHERE name = ? COLLATE NOCASE").get(nome) as Job | undefined;
 
   if (existing) {
+    // ── Aggiorna il lavoro esistente ────────────────────────────────────────
     if (stipendio === null && posti === null && !ruolo) {
       return interaction.reply({ content: `ℹ️ Il lavoro **${nome}** esiste già. Specifica almeno uno tra \`stipendio\`, \`posti\` o \`ruolo\` per aggiornarlo.`, ephemeral: true });
     }
@@ -132,6 +140,7 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── Crea nuovo lavoro ──────────────────────────────────────────────────────
   if (!ruolo) {
     return interaction.reply({ content: "❌ Per creare un nuovo lavoro devi specificare il `ruolo`.", ephemeral: true });
   }
@@ -154,6 +163,9 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
   await interaction.reply({ embeds: [embed] });
 }
 
+// ── /pannellolicenziamento ──────────────────────────────────────────────────
+// Pannello con un pulsante: aprendolo si mostra la tendina con i dipendenti
+// da licenziare (stessa logica prima disponibile su /licenziamento).
 export const pannellolicenziamentoData = new SlashCommandBuilder()
   .setName("pannellolicenziamento")
   .setDescription("Pubblica il pannello per licenziare dipendenti (solo staff)");
@@ -179,6 +191,8 @@ export async function pannellolicenziamentoHandler(interaction: ChatInputCommand
   await sendPanel(interaction, { embeds: [embed], components: [row] });
 }
 
+// ── /dimissioni ───────────────────────────────────────────────────────────────
+// Tutti possono usarlo — il dipendente si licenzia da solo.
 export const dimissioniData = new SlashCommandBuilder()
   .setName("dimissioni")
   .setDescription("Dai le dimissioni dal tuo lavoro attuale");
@@ -198,9 +212,11 @@ export async function dimissioniHandler(interaction: ChatInputCommandInteraction
     return interaction.reply({ content: "❌ Non sei assunto in nessun lavoro.", ephemeral: true });
   }
 
+  // Rimuovi dal DB e aggiorna i posti
   db.prepare("DELETE FROM employees WHERE userId = ? AND jobId = ?").run(userId, emp.jobId);
   db.prepare("UPDATE jobs SET currentSlots = MAX(0, currentSlots - 1) WHERE id = ?").run(emp.jobId);
 
+  // Rimuovi il ruolo Discord
   const guild = interaction.guild!;
   try {
     const member = await guild.members.fetch(userId).catch(() => null);
@@ -222,6 +238,7 @@ export async function dimissioniHandler(interaction: ChatInputCommandInteraction
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
+// ── /eliminalavoro ────────────────────────────────────────────────────────────
 export const eliminalavoroData = new SlashCommandBuilder()
   .setName("eliminalavoro")
   .setDescription("Elimina un lavoro (solo proprietario)")
@@ -232,10 +249,34 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
     return interaction.reply({ content: "❌ Non hai i permessi per eliminare lavori.", ephemeral: true });
   }
   const nome = interaction.options.getString("nome", true);
-  const result = db.prepare("DELETE FROM jobs WHERE name = ? COLLATE NOCASE").run(nome);
 
-  if (result.changes === 0) {
+  const job = db.prepare("SELECT * FROM jobs WHERE name = ? COLLATE NOCASE").get(nome) as Job | undefined;
+  if (!job) {
     return interaction.reply({ content: `❌ Lavoro "${nome}" non trovato.`, ephemeral: true });
   }
-  await interaction.reply({ content: `✅ Lavoro **${nome}** eliminato.`, ephemeral: true });
+
+  // Rimuovi il ruolo Discord a tutti i dipendenti che avevano questo lavoro
+  const employees = db.prepare("SELECT userId FROM employees WHERE jobId = ?").all(job.id) as { userId: string }[];
+  const guild = interaction.guild;
+  if (guild) {
+    for (const emp of employees) {
+      try {
+        const member = await guild.members.fetch(emp.userId).catch(() => null);
+        if (member) {
+          await member.roles.remove(job.roleId).catch(() => null);
+        }
+      } catch { /* ignora se il ruolo non esiste più */ }
+    }
+  }
+
+  db.prepare("DELETE FROM jobs WHERE id = ?").run(job.id);
+
+  await interaction.reply({
+    content: `✅ Lavoro **${nome}** eliminato. Ruolo rimosso a ${employees.length} dipendente/i.`,
+    ephemeral: true,
+  });
 }
+
+// ── licenziamento ─────────────────────────────────────────────────────────────
+// La logica di selezione dipendente è ora gestita dal bottone "licenziamento_open"
+// nel file interactions.ts (vedi /pannellolicenziamento qui sopra).
