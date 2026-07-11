@@ -4,8 +4,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import db, { type Job, type Employee } from "../db.js";
@@ -164,11 +162,13 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
 }
 
 // ── /pannellolicenziamento ──────────────────────────────────────────────────
-// Pannello con un pulsante: aprendolo si mostra la tendina con i dipendenti
-// da licenziare (stessa logica prima disponibile su /licenziamento).
+// Pannello con due pulsanti:
+//  - "Licenzia Dipendente" (solo staff) → tendina con i dipendenti da licenziare.
+//  - "Dimettiti" (chiunque) → il dipendente lascia da solo il proprio lavoro,
+//    con un passaggio di conferma prima di rendere effettive le dimissioni.
 export const pannellolicenziamentoData = new SlashCommandBuilder()
   .setName("pannellolicenziamento")
-  .setDescription("Pubblica il pannello per licenziare dipendenti (solo staff)");
+  .setDescription("Pubblica il pannello per licenziare dipendenti o dimettersi");
 
 export async function pannellolicenziamentoHandler(interaction: ChatInputCommandInteraction) {
   if (!isAdmin(interaction)) {
@@ -176,23 +176,33 @@ export async function pannellolicenziamentoHandler(interaction: ChatInputCommand
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("🔥 Gestione Licenziamenti")
-    .setDescription("Clicca il pulsante qui sotto per selezionare un dipendente da licenziare.")
+    .setTitle("🔥 Gestione Impieghi")
+    .setDescription(
+      "**Licenzia Dipendente** (solo staff) — seleziona un dipendente da licenziare.\n" +
+      "**Dimettiti** — lascia da solo il tuo lavoro attuale."
+    )
     .setColor(0xED4245)
     .setTimestamp();
 
-  const button = new ButtonBuilder()
-    .setCustomId("licenziamento_open")
-    .setLabel("Licenzia Dipendente")
-    .setEmoji("🔥")
-    .setStyle(ButtonStyle.Danger);
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("licenziamento_open")
+      .setLabel("Licenzia Dipendente")
+      .setEmoji("🔥")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId("dimissioni_open")
+      .setLabel("Dimettiti")
+      .setEmoji("🚪")
+      .setStyle(ButtonStyle.Secondary),
+  );
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
   await sendPanel(interaction, { embeds: [embed], components: [row] });
 }
 
 // ── /dimissioni ───────────────────────────────────────────────────────────────
-// Tutti possono usarlo — il dipendente si licenzia da solo.
+// Tutti possono usarlo — il dipendente si licenzia da solo (via comando slash,
+// senza passare dal pannello/bottone di conferma).
 export const dimissioniData = new SlashCommandBuilder()
   .setName("dimissioni")
   .setDescription("Dai le dimissioni dal tuo lavoro attuale");
@@ -277,6 +287,7 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
   });
 }
 
-// ── licenziamento ─────────────────────────────────────────────────────────────
-// La logica di selezione dipendente è ora gestita dal bottone "licenziamento_open"
-// nel file interactions.ts (vedi /pannellolicenziamento qui sopra).
+// ── licenziamento / dimissioni via pannello ───────────────────────────────────
+// La logica di selezione dipendente ("licenziamento_select"), le dimissioni con
+// conferma ("dimissioni_open" / "dimissioni_confirm" / "dimissioni_cancel") sono
+// gestite in interactions.ts, agganciate ai bottoni pubblicati sopra.
