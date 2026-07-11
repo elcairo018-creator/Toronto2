@@ -19,12 +19,14 @@ export async function pannellonegozioHandler(interaction: ChatInputCommandIntera
     .setTitle("🛍️ Negozi Online")
     .setDescription(
       "**Sfoglia Negozi** — sfoglia i negozi disponibili e acquista i tuoi prodotti preferiti.\n" +
-      "**Richiedi Apertura Negozio** — richiedi di aprire il tuo negozio personale."
+      "**Richiedi Apertura Negozio** — richiedi di aprire il tuo negozio personale.\n" +
+      "**Crea Prodotto** — aggiungi un nuovo prodotto a un negozio che possiedi.\n" +
+      "**Elimina Prodotto** — rimuovi un prodotto da un negozio che possiedi."
     )
     .setColor(0xFEE75C)
     .setTimestamp();
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("negozio_open")
       .setLabel("Sfoglia Negozi")
@@ -36,7 +38,21 @@ export async function pannellonegozioHandler(interaction: ChatInputCommandIntera
       .setEmoji("📝")
       .setStyle(ButtonStyle.Success),
   );
-  await sendPanel(interaction, { embeds: [embed], components: [row] });
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("creaprodotto_open")
+      .setLabel("Crea Prodotto")
+      .setEmoji("➕")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId("eliminaprodotto_open")
+      .setLabel("Elimina Prodotto")
+      .setEmoji("🗑️")
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  await sendPanel(interaction, { embeds: [embed], components: [row1, row2] });
 }
 
 export const negozioData = new SlashCommandBuilder()
