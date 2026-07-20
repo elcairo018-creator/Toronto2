@@ -20,8 +20,8 @@ export async function pannellonegozioHandler(interaction: ChatInputCommandIntera
     .setDescription(
       "**Sfoglia Negozi** — sfoglia i negozi disponibili e acquista i tuoi prodotti preferiti.\n" +
       "**Richiedi Apertura Negozio** — richiedi di aprire il tuo negozio personale.\n" +
-      "**Crea Prodotto** — aggiungi un nuovo prodotto a un negozio che possiedi.\n" +
-      "**Elimina Prodotto** — rimuovi un prodotto da un negozio che possiedi."
+      "**Crea Prodotto** — aggiungi un nuovo prodotto a qualsiasi negozio (richiede un lavoro assegnato).\n" +
+      "**Elimina Prodotto** — rimuovi un prodotto che hai creato tu (richiede un lavoro assegnato)."
     )
     .setColor(0xFEE75C)
     .setTimestamp();
@@ -234,6 +234,11 @@ export async function negozioAutocomplete(interaction: AutocompleteInteraction) 
       await interaction.respond([]);
     }
     return;
+  }
+
+  await interaction.respond([]);
+}
+
   }
 
   await interaction.respond([]);
