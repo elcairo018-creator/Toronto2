@@ -1,4 +1,4 @@
-      import {
+        import {
   SlashCommandBuilder,
   EmbedBuilder,
   ButtonBuilder,
@@ -106,9 +106,36 @@ export async function chiudinegozioHandler(interaction: ChatInputCommandInteract
   await interaction.reply({ content: `✅ Negozio **${nome}** chiuso ed eliminato.`, ephemeral: true });
 }
 
+// ── /pannellocreaprodotto ─────────────────────────────────────────────────────
+// Accessibile a tutti — pubblica un pannello con il bottone "Crea Prodotto".
+export const pannellocreaprodottoData = new SlashCommandBuilder()
+  .setName("pannellocreaprodotto")
+  .setDescription("Pubblica il pannello per creare un prodotto (accessibile a tutti)");
+
+export async function pannellocreaprodottoHandler(interaction: ChatInputCommandInteraction) {
+  const embed = new EmbedBuilder()
+    .setTitle("➕ Crea Prodotto")
+    .setDescription(
+      "Clicca il pulsante qui sotto per aggiungere un nuovo prodotto a un negozio.\n" +
+      "Potrai scegliere il negozio e inserire nome, prezzo e descrizione."
+    )
+    .setColor(0x5865F2)
+    .setTimestamp();
+
+  const button = new ButtonBuilder()
+    .setCustomId("creaprodotto_open")
+    .setLabel("Crea Prodotto")
+    .setEmoji("➕")
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+
+  await sendPanel(interaction, { embeds: [embed], components: [row] });
+}
+
 export const creaprodottoData = new SlashCommandBuilder()
   .setName("creaprodotto")
-  .setDescription("Crea un prodotto in un negozio (solo proprietario)")
+  .setDescription("Crea un prodotto in un negozio")
   .addStringOption((o) =>
     o.setName("negozio").setDescription("Nome del negozio").setRequired(true).setAutocomplete(true)
   )
@@ -118,10 +145,6 @@ export const creaprodottoData = new SlashCommandBuilder()
   .addAttachmentOption((o) => o.setName("immagine").setDescription("Immagine del prodotto").setRequired(false));
 
 export async function creaprodottoHandler(interaction: ChatInputCommandInteraction) {
-  if (!isAdmin(interaction)) {
-    return interaction.reply({ content: "❌ Non hai i permessi per creare prodotti.", ephemeral: true });
-  }
-
   const shopName = interaction.options.getString("negozio", true);
   const nome = interaction.options.getString("nome", true);
   const prezzo = interaction.options.getInteger("prezzo", true);
@@ -234,6 +257,11 @@ export async function negozioAutocomplete(interaction: AutocompleteInteraction) 
       await interaction.respond([]);
     }
     return;
+  }
+
+  await interaction.respond([]);
+}
+
   }
 
   await interaction.respond([]);
