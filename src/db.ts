@@ -77,6 +77,7 @@ db.exec(`
     price       INTEGER NOT NULL,
     description TEXT DEFAULT '',
     imageUrl    TEXT,
+    createdBy   TEXT,
     FOREIGN KEY (shopId) REFERENCES shops(id) ON DELETE CASCADE
   );
 
@@ -96,6 +97,12 @@ if (!shopCols.some((c) => c.name === "ownerId")) {
   db.exec("ALTER TABLE shops ADD COLUMN ownerId TEXT");
 }
 
+// Migrazione: aggiunge la colonna createdBy a products se il DB esisteva già senza.
+const productCols = db.prepare("PRAGMA table_info(products)").all() as { name: string }[];
+if (!productCols.some((c) => c.name === "createdBy")) {
+  db.exec("ALTER TABLE products ADD COLUMN createdBy TEXT");
+}
+
 logger.info({ path: DB_PATH }, "SQLite database initialized");
 
 export type Account = { userId: string; pin: string | null; balance: number };
@@ -105,7 +112,7 @@ export type Employee = { userId: string; jobId: number; lastSalary: string | nul
 export type Car = { id: number; name: string; price: number };
 export type House = { id: number; name: string; price: number };
 export type Shop = { id: number; name: string; ownerId: string | null };
-export type Product = { id: number; shopId: number; name: string; price: number; description: string; imageUrl: string | null };
+export type Product = { id: number; shopId: number; name: string; price: number; description: string; imageUrl: string | null; createdBy: string | null };
 export type Application = { id: number; userId: string; jobId: number; guildId: string; status: string; createdAt: string };
 export type ShopRequest = { id: number; userId: string; shopName: string; guildId: string; channelId: string | null; status: string; createdAt: string };
 
