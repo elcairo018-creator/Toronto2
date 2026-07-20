@@ -357,11 +357,11 @@ export async function handleButton(interaction: ButtonInteraction) {
     }
   }
 
-  // ── Crea prodotto (solo dipendenti/proprietari di un negozio) ──────────────
+  // ── Crea prodotto (solo dipendenti con un lavoro assegnato) ────────────────
   if (action === "creaprodotto_open") {
-    const ownedShop = db.prepare("SELECT id FROM shops WHERE ownerId = ?").get(interaction.user.id);
-    if (!ownedShop) {
-      return interaction.reply({ content: "❌ Solo i dipendenti (proprietari di un negozio) possono creare prodotti.", ephemeral: true });
+    const isEmployee = db.prepare("SELECT userId FROM employees WHERE userId = ?").get(interaction.user.id);
+    if (!isEmployee) {
+      return interaction.reply({ content: "❌ Solo i dipendenti (con un lavoro assegnato) possono creare prodotti.", ephemeral: true });
     }
 
     const shops = db.prepare("SELECT * FROM shops ORDER BY name ASC").all() as Shop[];
@@ -384,18 +384,23 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({ content: "Seleziona il negozio a cui aggiungere il prodotto:", components: [row], ephemeral: true });
   }
 
-  // ── Elimina prodotto: apre tendina dei propri negozi (solo proprietari) ────
+  // ── Elimina prodotto: apre tendina di tutti i negozi (solo dipendenti) ────
   if (action === "eliminaprodotto_open") {
-    const ownedShops = db.prepare("SELECT * FROM shops WHERE ownerId = ? ORDER BY name ASC").all(interaction.user.id) as Shop[];
-    if (ownedShops.length === 0) {
-      return interaction.reply({ content: "❌ Non possiedi nessun negozio.", ephemeral: true });
+    const isEmployee = db.prepare("SELECT userId FROM employees WHERE userId = ?").get(interaction.user.id);
+    if (!isEmployee) {
+      return interaction.reply({ content: "❌ Solo i dipendenti (con un lavoro assegnato) possono eliminare prodotti.", ephemeral: true });
+    }
+
+    const allShops = db.prepare("SELECT * FROM shops ORDER BY name ASC").all() as Shop[];
+    if (allShops.length === 0) {
+      return interaction.reply({ content: "❌ Nessun negozio disponibile al momento.", ephemeral: true });
     }
 
     const select = new StringSelectMenuBuilder()
       .setCustomId("eliminaprodotto_select_shop")
       .setPlaceholder("Scegli il negozio...")
       .addOptions(
-        ownedShops.slice(0, 25).map((s) =>
+        allShops.slice(0, 25).map((s) =>
           new StringSelectMenuOptionBuilder()
             .setLabel(s.name)
             .setValue(String(s.id))
@@ -809,15 +814,16 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return interaction.showModal(modal);
   }
 
-  // ── Elimina prodotto: negozio scelto, mostra tendina dei suoi prodotti ─────
+  // ── Elimina prodotto: negozio scelto, mostra i prodotti creati dall'utente ─
   if (action === "eliminaprodotto_select_shop") {
     const shopId = parseInt(values[0]!);
-    const shop = db.prepare("SELECT * FROM shops WHERE id = ? AND ownerId = ?").get(shopId, interaction.user.id) as Shop | undefined;
+    const shop = db.prepare("SELECT * FROM shops WHERE id = ?").get(shopId) as Shop | undefined;
     if (!shop) {
-      return interaction.reply({ content: "❌ Negozio non trovato o non ti appartiene.", ephemeral: true });
+      return interaction.reply({ content: "❌ Negozio non trovato.", ephemeral: true });
     }
 
-    const products = db.prepare("SELECT * FROM products WHERE shopId = ? ORDER BY name ASC").all(shopId) as Product[];
+    // Mostra solo i prodotti che l'utente ha creato in questo negozio
+    const products = db.prepare("SELECT * FROM products WHERE shopId = ? AND createdBy = ? ORDER BY name ASC").all(shopId, interaction.user.id) as Product[];
     if (products.length === 0) {
       return interaction.reply({ content: `❌ Il negozio **${shop.name}** non ha prodotti da eliminare.`, ephemeral: true });
     }
@@ -841,16 +847,16 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   if (action === "eliminaprodotto_select_product") {
     const productId = parseInt(values[0]!);
     const product = db.prepare(`
-      SELECT p.*, s.name as shopName, s.ownerId as shopOwnerId FROM products p
+      SELECT p.*, s.name as shopName FROM products p
       JOIN shops s ON s.id = p.shopId
       WHERE p.id = ?
-    `).get(productId) as (Product & { shopName: string; shopOwnerId: string | null }) | undefined;
+    `).get(productId) as (Product & { shopName: string }) | undefined;
 
     if (!product) {
       return interaction.reply({ content: "❌ Prodotto non trovato (forse già eliminato).", ephemeral: true });
     }
-    if (product.shopOwnerId !== interaction.user.id) {
-      return interaction.reply({ content: "❌ Non puoi eliminare prodotti di un negozio che non ti appartiene.", ephemeral: true });
+    if (product.createdBy !== interaction.user.id) {
+      return interaction.reply({ content: "❌ Non puoi eliminare un prodotto che non hai creato tu.", ephemeral: true });
     }
 
     db.prepare("DELETE FROM products WHERE id = ?").run(productId);
@@ -1021,8 +1027,8 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
     }
 
     const result = db.prepare(
-      "INSERT INTO products (shopId, name, price, description) VALUES (?, ?, ?, ?)"
-    ).run(shopId, nome, prezzo, descrizione);
+      "INSERT INTO products (shopId, name, price, description, createdBy) VALUES (?, ?, ?, ?, ?)"
+    ).run(shopId, nome, prezzo, descrizione, interaction.user.id);
 
     const embed = new EmbedBuilder()
       .setTitle(`🛍️ ${nome}`)
