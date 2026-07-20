@@ -1,6 +1,7 @@
 import { GuildMember, type ChatInputCommandInteraction, type BaseMessageOptions } from "discord.js";
 
 export const STAFF_ROLE_ID          = "1521493339562704898";
+export const OWNER_ROLE_ID          = "1141049314433573044";
 export const CONCESSIONARIO_ROLE_ID = "1524387712512299150";
 export const LAVORI_CHANNEL_ID      = "1521494153127788576";
 export const POSTINO_ROLE_ID        = "1523060050451632309";
@@ -22,18 +23,22 @@ export async function sendPanel(interaction: ChatInputCommandInteraction, payloa
 /** Verifica se un membro (da qualsiasi tipo di interazione) è proprietario o staff. */
 export function memberIsStaff(member: unknown, userId: string, guildOwnerId?: string | null): boolean {
   if (guildOwnerId && userId === guildOwnerId) return true;
-  if (member instanceof GuildMember) return member.roles.cache.has(STAFF_ROLE_ID);
+  if (member instanceof GuildMember) {
+    return member.roles.cache.has(STAFF_ROLE_ID) || member.roles.cache.has(OWNER_ROLE_ID);
+  }
   const m = member as { roles?: string[] } | null;
-  return Array.isArray(m?.roles) && m.roles.includes(STAFF_ROLE_ID);
+  return Array.isArray(m?.roles) && (m.roles.includes(STAFF_ROLE_ID) || m.roles.includes(OWNER_ROLE_ID));
 }
 
-/** Proprietario del server OPPURE membro con ruolo Staff. */
+/** Proprietario del server OPPURE membro con ruolo Staff o Proprietario. */
 export function isAdmin(interaction: ChatInputCommandInteraction): boolean {
   if (interaction.user.id === interaction.guild?.ownerId) return true;
   const m = interaction.member;
-  if (m instanceof GuildMember) return m.roles.cache.has(STAFF_ROLE_ID);
+  if (m instanceof GuildMember) {
+    return m.roles.cache.has(STAFF_ROLE_ID) || m.roles.cache.has(OWNER_ROLE_ID);
+  }
   // APIInteractionGuildMember (roles è string[])
-  return Array.isArray(m?.roles) && (m.roles as string[]).includes(STAFF_ROLE_ID);
+  return Array.isArray(m?.roles) && ((m.roles as string[]).includes(STAFF_ROLE_ID) || (m.roles as string[]).includes(OWNER_ROLE_ID));
 }
 
 /** isAdmin + ruolo Concessionario (per gestione auto). */
