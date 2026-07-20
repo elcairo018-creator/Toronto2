@@ -1,4 +1,4 @@
-import {
+      import {
   SlashCommandBuilder,
   EmbedBuilder,
   ButtonBuilder,
@@ -234,11 +234,6 @@ export async function negozioAutocomplete(interaction: AutocompleteInteraction) 
       await interaction.respond([]);
     }
     return;
-  }
-
-  await interaction.respond([]);
-}
-
   }
 
   await interaction.respond([]);
