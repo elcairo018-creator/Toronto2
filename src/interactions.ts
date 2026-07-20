@@ -528,19 +528,8 @@ export async function handleButton(interaction: ButtonInteraction) {
     }
   }
 
-  // ── Crea prodotto (solo dipendenti con un lavoro assegnato) ────────────────
+  // ── Crea prodotto (aperto a tutti) ────────────────────────────────────────
   if (action === "creaprodotto_open") {
-    const isEmployee = db
-      .prepare("SELECT userId FROM employees WHERE userId = ?")
-      .get(interaction.user.id);
-    if (!isEmployee) {
-      return interaction.reply({
-        content:
-          "❌ Solo i dipendenti (con un lavoro assegnato) possono creare prodotti.",
-        ephemeral: true,
-      });
-    }
-
     const shops = db
       .prepare("SELECT * FROM shops ORDER BY name ASC")
       .all() as Shop[];
@@ -553,7 +542,7 @@ export async function handleButton(interaction: ButtonInteraction) {
 
     const select = new StringSelectMenuBuilder()
       .setCustomId("creaprodotto_select_shop")
-      .setPlaceholder("Scegli il negozio del prodotto...")
+      .setPlaceholder("Scegli il negozio...")
       .addOptions(
         shops
           .slice(0, 25)
@@ -567,8 +556,15 @@ export async function handleButton(interaction: ButtonInteraction) {
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       select,
     );
+
+    const embed = new EmbedBuilder()
+      .setTitle("➕ Crea Prodotto")
+      .setDescription("Seleziona il negozio in cui vuoi aggiungere il prodotto.\nDopo aver scelto il negozio ti verrà chiesto nome, prezzo e descrizione.")
+      .setColor(0x5865f2)
+      .setTimestamp();
+
     return interaction.reply({
-      content: "Seleziona il negozio a cui aggiungere il prodotto:",
+      embeds: [embed],
       components: [row],
       ephemeral: true,
     });
@@ -1858,4 +1854,3 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 }
-
