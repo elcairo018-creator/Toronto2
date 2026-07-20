@@ -261,8 +261,3 @@ export async function negozioAutocomplete(interaction: AutocompleteInteraction) 
 
   await interaction.respond([]);
 }
-
-  }
-
-  await interaction.respond([]);
-}

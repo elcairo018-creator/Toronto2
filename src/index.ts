@@ -39,6 +39,7 @@ import {
 
 import {
   pannellonegozioData, pannellonegozioHandler,
+  pannellocreaprodottoData, pannellocreaprodottoHandler,
   creaprodottoData, creaprodottoHandler,
   eliminaprodottoData, eliminaprodottoHandler,
   pannellopagamentiData, pannellopagamentiHandler,
@@ -74,6 +75,7 @@ reg(pannellocaseData, pannellocaseHandler);
 reg(creacasaData, creacasaHandler);
 reg(eliminacasaData, eliminacasaHandler);
 reg(pannellonegozioData, pannellonegozioHandler);
+reg(pannellocreaprodottoData, pannellocreaprodottoHandler);
 reg(creaprodottoData, creaprodottoHandler);
 reg(eliminaprodottoData, eliminaprodottoHandler);
 reg(pannellopagamentiData, pannellopagamentiHandler);
