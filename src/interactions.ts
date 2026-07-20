@@ -22,7 +22,7 @@ import db, {
   type Application,
   type ShopRequest,
 } from "./db.js";
-import { POSTINO_ROLE_ID, STAFF_ROLE_ID, memberIsStaff } from "./utils.js";
+import { POSTINO_ROLE_ID, STAFF_ROLE_ID, OWNER_ROLE_ID, memberIsStaff } from "./utils.js";
 
 const BANDO_CHANNELS: Record<string, string> = {
   polizia: "1521494201513283744",
@@ -163,26 +163,6 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "job_accept") {
-    const guild =
-      interaction.guild ??
-      (await interaction.client.guilds
-        .fetch(interaction.guildId!)
-        .catch(() => null));
-    const invoker = guild
-      ? await guild.members.fetch(interaction.user.id).catch(() => null)
-      : null;
-    const authorized =
-      !!guild &&
-      (interaction.user.id === guild.ownerId ||
-        (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false));
-    if (!authorized) {
-      return interaction.reply({
-        content:
-          "❌ Solo il proprietario o lo staff possono accettare candidature.",
-        ephemeral: true,
-      });
-    }
-
     const appId = args[0];
     const app = db
       .prepare("SELECT * FROM applications WHERE id = ?")
@@ -190,6 +170,26 @@ export async function handleButton(interaction: ButtonInteraction) {
     if (!app || app.status !== "pending") {
       return interaction.reply({
         content: "❌ Candidatura non trovata o già gestita.",
+        ephemeral: true,
+      });
+    }
+
+    // Fetch the guild using the guildId stored in the application (works even from DMs)
+    const guild =
+      interaction.guild ??
+      (await interaction.client.guilds.fetch(app.guildId).catch(() => null));
+    const invoker = guild
+      ? await guild.members.fetch(interaction.user.id).catch(() => null)
+      : null;
+    const authorized =
+      !!guild &&
+      (interaction.user.id === guild.ownerId ||
+        (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false) ||
+        (invoker?.roles.cache.has(OWNER_ROLE_ID) ?? false));
+    if (!authorized) {
+      return interaction.reply({
+        content:
+          "❌ Solo il proprietario o lo staff possono accettare candidature.",
         ephemeral: true,
       });
     }
@@ -272,26 +272,6 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "job_reject") {
-    const guild =
-      interaction.guild ??
-      (await interaction.client.guilds
-        .fetch(interaction.guildId!)
-        .catch(() => null));
-    const invoker = guild
-      ? await guild.members.fetch(interaction.user.id).catch(() => null)
-      : null;
-    const authorized =
-      !!guild &&
-      (interaction.user.id === guild.ownerId ||
-        (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false));
-    if (!authorized) {
-      return interaction.reply({
-        content:
-          "❌ Solo il proprietario o lo staff possono rifiutare candidature.",
-        ephemeral: true,
-      });
-    }
-
     const appId = args[0];
     const app = db
       .prepare("SELECT * FROM applications WHERE id = ?")
@@ -299,6 +279,26 @@ export async function handleButton(interaction: ButtonInteraction) {
     if (!app || app.status !== "pending") {
       return interaction.reply({
         content: "❌ Candidatura non trovata o già gestita.",
+        ephemeral: true,
+      });
+    }
+
+    // Fetch the guild using the guildId stored in the application (works even from DMs)
+    const guild =
+      interaction.guild ??
+      (await interaction.client.guilds.fetch(app.guildId).catch(() => null));
+    const invoker = guild
+      ? await guild.members.fetch(interaction.user.id).catch(() => null)
+      : null;
+    const authorized =
+      !!guild &&
+      (interaction.user.id === guild.ownerId ||
+        (invoker?.roles.cache.has(STAFF_ROLE_ID) ?? false) ||
+        (invoker?.roles.cache.has(OWNER_ROLE_ID) ?? false));
+    if (!authorized) {
+      return interaction.reply({
+        content:
+          "❌ Solo il proprietario o lo staff possono rifiutare candidature.",
         ephemeral: true,
       });
     }
