@@ -70,17 +70,38 @@ db.exec(`
     FOREIGN KEY (houseId) REFERENCES houses(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS shop_items (
-    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    name  TEXT NOT NULL,
-    price INTEGER NOT NULL
+  CREATE TABLE IF NOT EXISTS shops (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name    TEXT NOT NULL UNIQUE,
+    ownerId TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS products (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    shopId      INTEGER NOT NULL,
+    name        TEXT NOT NULL,
+    price       INTEGER NOT NULL,
+    description TEXT,
+    imageUrl    TEXT,
+    createdBy   TEXT,
+    FOREIGN KEY (shopId) REFERENCES shops(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS shop_requests (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId    TEXT NOT NULL,
+    shopName  TEXT NOT NULL,
+    guildId   TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    status    TEXT NOT NULL DEFAULT 'pending',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS owned_items (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     userId TEXT NOT NULL,
     itemId INTEGER NOT NULL,
-    FOREIGN KEY (itemId) REFERENCES shop_items(id) ON DELETE CASCADE
+    FOREIGN KEY (itemId) REFERENCES products(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS applications (
@@ -108,7 +129,7 @@ try {
   db.prepare("UPDATE accounts SET balance = 500 WHERE balance = 0").run();
   logger.info("Migrazione saldo completata: conti a 0 portati a €500");
 } catch (err) {
-  logger.error("Errore migrazione saldo:", err);
+  logger.error({ err }, "Errore migrazione saldo");
 }
 
 // ── Carica lavori dal seed se la tabella è vuota ──────────────────────────────
@@ -135,7 +156,7 @@ try {
     logger.info(`Caricati ${seed.length} lavori da jobs_seed.json`);
   }
 } catch (err) {
-  logger.error("Errore caricamento seed lavori:", err);
+  logger.error({ err }, "Errore caricamento seed lavori");
 }
 
 // ── Esporta snapshot dei lavori in jobs_seed.json ─────────────────────────────
@@ -147,8 +168,78 @@ export function saveJobsSeed(): void {
     fs.writeFileSync(JOBS_SEED_PATH, JSON.stringify(jobs, null, 2), "utf-8");
     logger.info("jobs_seed.json aggiornato");
   } catch (err) {
-    logger.error("Errore salvataggio seed lavori:", err);
+    logger.error({ err }, "Errore salvataggio seed lavori");
   }
+}
+
+// ── Interfacce TypeScript ─────────────────────────────────────────────────────
+
+export interface Account {
+  userId: string;
+  pin: string | null;
+  balance: number;
+}
+
+export interface Job {
+  id: number;
+  name: string;
+  roleId: string;
+  salary: number;
+  maxSlots: number | null;
+  currentSlots: number;
+}
+
+export interface Employee {
+  userId: string;
+  jobId: number;
+  lastSalary: string | null;
+}
+
+export interface Application {
+  id: number;
+  userId: string;
+  jobId: number;
+  guildId: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface Car {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface House {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface Shop {
+  id: number;
+  name: string;
+  ownerId: string | null;
+}
+
+export interface Product {
+  id: number;
+  shopId: number;
+  name: string;
+  price: number;
+  description: string | null;
+  imageUrl: string | null;
+  createdBy: string | null;
+}
+
+export interface ShopRequest {
+  id: number;
+  userId: string;
+  shopName: string;
+  guildId: string;
+  channelId: string;
+  status: string;
+  createdAt: string;
 }
 
 export default db;
