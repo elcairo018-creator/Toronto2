@@ -48,3 +48,107 @@ db.exec(`
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     name  TEXT NOT NULL,
     price INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS owned_cars (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId TEXT NOT NULL,
+    carId  INTEGER NOT NULL,
+    FOREIGN KEY (carId) REFERENCES cars(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS houses (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL,
+    price INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS owned_houses (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId  TEXT NOT NULL,
+    houseId INTEGER NOT NULL,
+    FOREIGN KEY (houseId) REFERENCES houses(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS shop_items (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL,
+    price INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS owned_items (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId TEXT NOT NULL,
+    itemId INTEGER NOT NULL,
+    FOREIGN KEY (itemId) REFERENCES shop_items(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS applications (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId    TEXT NOT NULL,
+    jobId     INTEGER NOT NULL,
+    guildId   TEXT NOT NULL,
+    status    TEXT NOT NULL DEFAULT 'pending',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (jobId) REFERENCES jobs(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS transactions (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    fromId    TEXT NOT NULL,
+    toId      TEXT NOT NULL,
+    amount    INTEGER NOT NULL,
+    note      TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Migrazione: conto con saldo 0 → €500 ─────────────────────────────────────
+try {
+  db.prepare("UPDATE accounts SET balance = 500 WHERE balance = 0").run();
+  logger.info("Migrazione saldo completata: conti a 0 portati a €500");
+} catch (err) {
+  logger.error("Errore migrazione saldo:", err);
+}
+
+// ── Carica lavori dal seed se la tabella è vuota ──────────────────────────────
+try {
+  const jobCount = (
+    db.prepare("SELECT COUNT(*) as n FROM jobs").get() as { n: number }
+  ).n;
+
+  if (jobCount === 0 && fs.existsSync(JOBS_SEED_PATH)) {
+    const seed = JSON.parse(fs.readFileSync(JOBS_SEED_PATH, "utf-8")) as Array<{
+      name: string;
+      roleId: string;
+      salary: number;
+      maxSlots: number | null;
+    }>;
+
+    const insert = db.prepare(
+      "INSERT OR IGNORE INTO jobs (name, roleId, salary, maxSlots) VALUES (?, ?, ?, ?)",
+    );
+    const insertMany = db.transaction((jobs: typeof seed) => {
+      for (const j of jobs) insert.run(j.name, j.roleId, j.salary, j.maxSlots);
+    });
+    insertMany(seed);
+    logger.info(`Caricati ${seed.length} lavori da jobs_seed.json`);
+  }
+} catch (err) {
+  logger.error("Errore caricamento seed lavori:", err);
+}
+
+// ── Esporta snapshot dei lavori in jobs_seed.json ─────────────────────────────
+export function saveJobsSeed(): void {
+  try {
+    const jobs = db
+      .prepare("SELECT name, roleId, salary, maxSlots FROM jobs")
+      .all();
+    fs.writeFileSync(JOBS_SEED_PATH, JSON.stringify(jobs, null, 2), "utf-8");
+    logger.info("jobs_seed.json aggiornato");
+  } catch (err) {
+    logger.error("Errore salvataggio seed lavori:", err);
+  }
+}
+
+export default db;
