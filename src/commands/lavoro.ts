@@ -6,7 +6,7 @@ import {
   ActionRowBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
-import db, { type Job, type Employee } from "../db.js";
+import db, { type Job, type Employee, saveJobsSeed } from "../db.js";
 import { isAdmin, LAVORI_CHANNEL_ID, sendPanel } from "../utils.js";
 
 // ── /stipendio ────────────────────────────────────────────────────────────────
@@ -97,9 +97,9 @@ export const crealavoriData = new SlashCommandBuilder()
   .setName("crealavoro")
   .setDescription("Crea un lavoro o aggiorna stipendio/posti (solo proprietario)")
   .addStringOption((o) => o.setName("nome").setDescription("Nome del lavoro").setRequired(true))
-  .addRoleOption((o) => o.setName("ruolo").setDescription("Ruolo Discord assegnato (richiesto solo per creare)").setRequired(false))
+  .addRoleOption((o) => o.setName("ruolo").setDescription("Ruolo Discord del lavoro"))
   .addIntegerOption((o) => o.setName("stipendio").setDescription("Stipendio giornaliero (€)").setMinValue(0))
-  .addIntegerOption((o) => o.setName("posti").setDescription("Posti disponibili (vuoto = illimitati)").setMinValue(1));
+  .addIntegerOption((o) => o.setName("posti").setDescription("Posti massimi (lascia vuoto = illimitati)").setMinValue(1));
 
 export async function crealavoriHandler(interaction: ChatInputCommandInteraction) {
   if (!isAdmin(interaction)) {
@@ -135,6 +135,8 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
       )
       .setTimestamp();
 
+    // Salva il seed aggiornato così sopravvive ai riavvii
+    saveJobsSeed();
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
@@ -158,6 +160,8 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
     )
     .setTimestamp();
 
+  // Salva il seed così il lavoro sopravvive ai riavvii/aggiornamenti
+  saveJobsSeed();
   await interaction.reply({ embeds: [embed] });
 }
 
@@ -233,14 +237,11 @@ export async function dimissioniHandler(interaction: ChatInputCommandInteraction
     if (member) {
       await member.roles.remove(emp.roleId).catch(() => null);
     }
-  } catch { /* ignora se il ruolo non esiste più */ }
+  } catch { /* ignora */ }
 
   const embed = new EmbedBuilder()
-    .setTitle("📋 Dimissioni Accettate")
-    .setDescription(
-      `Hai dato le dimissioni da **${emp.jobName}**.\n\n` +
-      `Sei ora disoccupato. Puoi candidarti a un nuovo lavoro nel canale <#${LAVORI_CHANNEL_ID}>.`
-    )
+    .setTitle("🚪 Dimissioni Accettate")
+    .setDescription(`Hai lasciato il lavoro di **${emp.jobName}**.`)
     .setColor(0xED4245)
     .setThumbnail(interaction.user.displayAvatarURL())
     .setTimestamp();
@@ -280,6 +281,8 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
   }
 
   db.prepare("DELETE FROM jobs WHERE id = ?").run(job.id);
+  // Aggiorna il seed dopo l'eliminazione
+  saveJobsSeed();
 
   await interaction.reply({
     content: `✅ Lavoro **${nome}** eliminato. Ruolo rimosso a ${employees.length} dipendente/i.`,
