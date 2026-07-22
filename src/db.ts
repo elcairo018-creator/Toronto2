@@ -204,6 +204,14 @@ export interface Application {
   createdAt: string;
 }
 
+export interface Card {
+  id: number;
+  userId: string;
+  cardNumber: string;
+  cvv: string;
+  expiry: string;
+}
+
 export interface Car {
   id: number;
   name: string;
