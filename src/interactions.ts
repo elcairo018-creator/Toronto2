@@ -26,9 +26,22 @@ import { POSTINO_ROLE_ID, STAFF_ROLE_ID, OWNER_ROLE_ID, memberIsStaff } from "./
 
 const BANDO_CHANNELS: Record<string, string> = {
   polizia: "1521494201513283744",
+  poliziotto: "1521494201513283744",
+  poliziotti: "1521494201513283744",
+  agente: "1521494201513283744",
+  medico: "1521494211231482037",
   medici: "1521494211231482037",
+  dottore: "1521494211231482037",
+  dottori: "1521494211231482037",
+  pompiere: "1521494206332272660",
   pompieri: "1521494206332272660",
+  vigile: "1521494206332272660",
 };
+
+// Owner Discord ID che riceve tutte le candidature in DM
+const BOT_OWNER_ID = "1141049314433573044";
+// Canale dimissioni
+const DIMISSIONI_CHANNEL_ID = "1521494162766037215";
 
 export async function handleButton(interaction: ButtonInteraction) {
   const [action, ...args] = interaction.customId.split(":");
@@ -43,7 +56,7 @@ export async function handleButton(interaction: ButtonInteraction) {
         ephemeral: true,
       });
     }
-    db.prepare("INSERT INTO accounts (userId, balance) VALUES (?, 0)").run(
+    db.prepare("INSERT INTO accounts (userId, balance) VALUES (?, 500)").run(
       interaction.user.id,
     );
     return interaction.reply({
@@ -51,10 +64,10 @@ export async function handleButton(interaction: ButtonInteraction) {
         new EmbedBuilder()
           .setTitle("🏦 Conto Aperto!")
           .setDescription(
-            "Il tuo conto è stato creato con successo.\nUsa **Crea PIN** e **Crea Carta** per completare la configurazione.",
+            "Il tuo conto è stato creato con successo con un saldo iniziale di **€500**!\nUsa **Crea PIN** e **Crea Carta** per completare la configurazione.",
           )
           .setColor(0x57f287)
-          .addFields({ name: "Saldo iniziale", value: "€0", inline: true })
+          .addFields({ name: "Saldo iniziale", value: "€500", inline: true })
           .setTimestamp(),
       ],
       ephemeral: true,
@@ -992,6 +1005,21 @@ export async function handleSelectMenu(
       });
     }
 
+    // Se l'utente ha già un ALTRO lavoro, deve prima dimettersi
+    const otherJob = db
+      .prepare(
+        `SELECT e.jobId, j.name as jobName FROM employees e
+         JOIN jobs j ON j.id = e.jobId
+         WHERE e.userId = ? AND e.jobId != ? LIMIT 1`,
+      )
+      .get(userId, jobId) as { jobId: number; jobName: string } | undefined;
+    if (otherJob) {
+      return interaction.reply({
+        content: `❌ Hai già un lavoro come **${otherJob.jobName}**. Per candidarti a un altro lavoro devi prima dimetterti nel canale <#${DIMISSIONI_CHANNEL_ID}>.`,
+        ephemeral: true,
+      });
+    }
+
     const pendingApp = db
       .prepare(
         "SELECT id FROM applications WHERE userId = ? AND jobId = ? AND status IN ('pending', 'bando')",
@@ -1037,12 +1065,46 @@ export async function handleSelectMenu(
 
       await channel.send({ embeds: [embed] });
 
-      db.prepare(
-        "INSERT INTO applications (userId, jobId, guildId, status) VALUES (?, ?, ?, 'bando')",
+      // Inserisci come 'pending' così il proprietario può accettare/rifiutare
+      const bandoAppResult = db.prepare(
+        "INSERT INTO applications (userId, jobId, guildId) VALUES (?, ?, ?)",
       ).run(userId, jobId, guild.id);
+      const bandoAppId = bandoAppResult.lastInsertRowid;
+
+      // Embed con bottoni accetta/rifiuta da mandare al proprietario
+      const ownerEmbed = new EmbedBuilder()
+        .setTitle(`📬 Nuova Candidatura Bando — ${job.name}`)
+        .setColor(0x5865f2)
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .addFields(
+          { name: "Candidato", value: `<@${userId}> (${interaction.user.username})`, inline: false },
+          { name: "Lavoro", value: job.name, inline: true },
+          { name: "Stipendio", value: `€${job.salary}`, inline: true },
+          { name: "Server", value: guild.name, inline: true },
+          { name: "Data", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        )
+        .setTimestamp();
+
+      const ownerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`job_accept:${bandoAppId}`)
+          .setLabel("✅ Accetta")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`job_reject:${bandoAppId}`)
+          .setLabel("❌ Rifiuta")
+          .setStyle(ButtonStyle.Danger),
+      );
+
+      try {
+        const ownerUser = await interaction.client.users.fetch(BOT_OWNER_ID).catch(() => null);
+        if (ownerUser) {
+          await ownerUser.send({ embeds: [ownerEmbed], components: [ownerRow] }).catch(() => null);
+        }
+      } catch { /* DM del proprietario chiusi */ }
 
       return interaction.reply({
-        content: `✅ La tua candidatura per **${job.name}** è stata inviata nel canale bando!`,
+        content: `✅ La tua candidatura per **${job.name}** è stata inviata nel canale bando! Attendi la risposta del proprietario.`,
         ephemeral: true,
       });
     } else {
