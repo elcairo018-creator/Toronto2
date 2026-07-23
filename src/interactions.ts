@@ -43,6 +43,211 @@ const BOT_OWNER_ID = "1141049314433573044";
 // Canale dimissioni
 const DIMISSIONI_CHANNEL_ID = "1521494162766037215";
 
+// ── Template bando per ogni corpo ─────────────────────────────────────────────
+const BANDO_TEMPLATE_POLIZIA = `⏔⏔⏔ ꒰ 🚓 ꒱ ⏔⏔⏔
+
+ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴀ • ᴘᴏʟɪᴢɪᴀ
+
+Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomplete, poco curate o contenenti informazioni false verranno automaticamente rifiutate.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ɪɴꜰᴏʀᴍᴀᴢɪᴏɴɪ
+
+➜ Nome e Cognome (RP):
+➜ ID di gioco:
+➜ Nickname Discord:
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴅᴏᴍᴀɴᴅᴇ
+
+① Perché desideri entrare nel Corpo di Polizia?
+
+② Perché dovremmo scegliere proprio te?
+
+③ Hai già avuto esperienze nelle Forze dell'Ordine? Se sì, quali?
+
+④ Come ti comporteresti con un cittadino che non rispetta le regole?
+
+⑤ Cosa faresti durante una rapina in corso?
+
+⑥ Sai lavorare in squadra e seguire gli ordini dei superiori? Motiva la tua risposta.
+
+⑦ Quanto tempo puoi dedicare al Corpo di Polizia?
+
+⑧ C'è qualcosa che vorresti aggiungere alla tua candidatura?
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇQᴜɪꜱɪᴛɪ
+
+➜ Avere un comportamento maturo e rispettoso.
+➜ Saper lavorare in squadra.
+➜ Rispettare il regolamento del server.
+➜ Essere attivi.
+➜ Seguire le direttive dei superiori.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇɢᴏʟᴇ
+
+➜ È vietato abusare del proprio ruolo.
+➜ Rispetta sempre cittadini, colleghi e superiori.
+➜ Mantieni un comportamento professionale durante il servizio.
+➜ Non divulgare informazioni riservate del Corpo.
+➜ Ogni violazione del regolamento comporterà provvedimenti disciplinari.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴇꜱɪᴛᴏ
+
+🟢 Accettata
+🟡 In valutazione
+🔴 Rifiutata
+
+⏔⏔⏔ ꒰ 🚔 ꒱ ⏔⏔⏔`;
+
+const BANDO_TEMPLATE_OSPEDALE = `⏔⏔⏔ ꒰ 🏥 ꒱ ⏔⏔⏔
+
+ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴀ • ᴏꜱᴘᴇᴅᴀʟᴇ
+
+Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomplete, poco curate o contenenti informazioni false verranno automaticamente rifiutate.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ɪɴꜰᴏʀᴍᴀᴢɪᴏɴɪ
+
+➜ Nome e Cognome (RP):
+➜ ID di gioco:
+➜ Nickname Discord:
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴅᴏᴍᴀɴᴅᴇ
+
+① Perché desideri entrare a far parte dell'Ospedale?
+
+② Perché dovremmo scegliere proprio te?
+
+③ Hai già avuto esperienze come medico, infermiere o soccorritore? Se sì, quali?
+
+④ Come ti comporteresti con un paziente in condizioni critiche?
+
+⑤ Come gestiresti una situazione con più feriti contemporaneamente?
+
+⑥ Sai lavorare in squadra e seguire le indicazioni dei superiori? Motiva la tua risposta.
+
+⑦ Quanto tempo puoi dedicare al personale sanitario?
+
+⑧ C'è qualcosa che vorresti aggiungere alla tua candidatura?
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇQᴜɪꜱɪᴛɪ
+
+➜ Avere un comportamento maturo e rispettoso.
+➜ Mantenere la calma nelle situazioni di emergenza.
+➜ Saper lavorare in squadra.
+➜ Rispettare il regolamento del server.
+➜ Seguire le direttive dei superiori.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇɢᴏʟᴇ
+
+➜ Tratta ogni paziente con rispetto e professionalità.
+➜ Dai sempre priorità alla salute e alla sicurezza dei cittadini.
+➜ È vietato abusare del proprio ruolo.
+➜ Rispetta superiori, colleghi e pazienti.
+➜ Non divulgare informazioni riservate riguardanti pazienti o personale.
+➜ Ogni violazione del regolamento comporterà provvedimenti disciplinari.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴇꜱɪᴛᴏ
+
+🟢 Accettata
+🟡 In valutazione
+🔴 Rifiutata
+
+⏔⏔⏔ ꒰ 🏥 ꒱ ⏔⏔⏔`;
+
+const BANDO_TEMPLATE_POMPIERI = `⏔⏔⏔ ꒰ 🚒 ꒱ ⏔⏔⏔
+
+ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴀ • ᴠɪɢɪʟɪ ᴅᴇʟ ꜰᴜᴏᴄᴏ
+
+Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomplete, poco curate o contenenti informazioni false verranno automaticamente rifiutate.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ɪɴꜰᴏʀᴍᴀᴢɪᴏɴɪ
+
+➜ Nome e Cognome (RP):
+➜ ID di gioco:
+➜ Nickname Discord:
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴅᴏᴍᴀɴᴅᴇ
+
+① Perché desideri entrare nei Vigili del Fuoco?
+
+② Perché dovremmo scegliere proprio te?
+
+③ Hai già avuto esperienze come Vigile del Fuoco o in altri servizi di emergenza? Se sì, quali?
+
+④ Come reagiresti durante un incendio o un intervento urgente?
+
+⑤ Come ti comporteresti con una persona ferita o in difficoltà?
+
+⑥ Sai lavorare in squadra e seguire gli ordini dei superiori? Motiva la tua risposta.
+
+⑦ Quanto tempo puoi dedicare ai Vigili del Fuoco?
+
+⑧ C'è qualcosa che vorresti aggiungere alla tua candidatura?
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇQᴜɪꜱɪᴛɪ
+
+➜ Avere un comportamento maturo e rispettoso.
+➜ Saper mantenere la calma nelle situazioni di emergenza.
+➜ Saper lavorare in squadra.
+➜ Rispettare il regolamento del server.
+➜ Seguire le direttive dei superiori.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ʀᴇɢᴏʟᴇ
+
+➜ Intervieni sempre con serietà e professionalità.
+➜ Dai priorità alla sicurezza dei cittadini e dei colleghi.
+➜ È vietato abusare del proprio ruolo.
+➜ Rispetta sempre superiori, colleghi e cittadini.
+➜ Non divulgare informazioni riservate del Corpo.
+➜ Ogni violazione del regolamento comporterà provvedimenti disciplinari.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴇꜱɪᴛᴏ
+
+🟢 Accettata
+🟡 In valutazione
+🔴 Rifiutata
+
+⏔⏔⏔ ꒰ 🚒 ꒱ ⏔⏔⏔`;
+
+function getBandoTemplate(jobKey: string): string | null {
+  if (["polizia", "poliziotto", "poliziotti", "agente"].includes(jobKey))
+    return BANDO_TEMPLATE_POLIZIA;
+  if (["medico", "medici", "dottore", "dottori"].includes(jobKey))
+    return BANDO_TEMPLATE_OSPEDALE;
+  if (["pompiere", "pompieri", "vigile"].includes(jobKey))
+    return BANDO_TEMPLATE_POMPIERI;
+  return null;
+}
+
 export async function handleButton(interaction: ButtonInteraction) {
   const [action, ...args] = interaction.customId.split(":");
 
@@ -1047,45 +1252,27 @@ export async function handleSelectMenu(
         });
       }
 
-      const embed = new EmbedBuilder()
-        .setTitle(`📋 Nuova Candidatura — ${job.name}`)
-        .setColor(0x5865f2)
-        .setThumbnail(interaction.user.displayAvatarURL())
-        .addFields(
-          { name: "Candidato", value: `<@${userId}>`, inline: true },
-          { name: "Username", value: interaction.user.username, inline: true },
-          { name: "Lavoro", value: job.name, inline: true },
-          {
-            name: "Data",
-            value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
-            inline: false,
-          },
-        )
-        .setTimestamp();
-
-      await channel.send({ embeds: [embed] });
-
-      // Inserisci come 'pending' così il proprietario può accettare/rifiutare
-      const bandoAppResult = db.prepare(
-        "INSERT INTO applications (userId, jobId, guildId) VALUES (?, ?, ?)",
-      ).run(userId, jobId, guild.id);
+      // Salva candidatura nel DB
+      const bandoAppResult = db
+        .prepare("INSERT INTO applications (userId, jobId, guildId) VALUES (?, ?, ?)")
+        .run(userId, jobId, guild.id);
       const bandoAppId = bandoAppResult.lastInsertRowid;
 
-      // Embed con bottoni accetta/rifiuta da mandare al proprietario
-      const ownerEmbed = new EmbedBuilder()
-        .setTitle(`📬 Nuova Candidatura Bando — ${job.name}`)
-        .setColor(0x5865f2)
-        .setThumbnail(interaction.user.displayAvatarURL())
-        .addFields(
-          { name: "Candidato", value: `<@${userId}> (${interaction.user.username})`, inline: false },
-          { name: "Lavoro", value: job.name, inline: true },
-          { name: "Stipendio", value: `€${job.salary}`, inline: true },
-          { name: "Server", value: guild.name, inline: true },
-          { name: "Data", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-        )
-        .setTimestamp();
+      // 1️⃣ Messaggio intestazione nel canale bando
+      await channel.send({
+        content:
+          `📋 **Bando** <@${userId}>\n\n` +
+          `Copia il seguente template e rispondi alle domande:`,
+      });
 
-      const ownerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      // 2️⃣ Template specifico per il corpo
+      const template = getBandoTemplate(jobKey);
+      if (template) {
+        await channel.send({ content: template });
+      }
+
+      // 3️⃣ Messaggio con bottoni accetta/rifiuta (solo staff può usarli)
+      const staffRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`job_accept:${bandoAppId}`)
           .setLabel("✅ Accetta")
@@ -1095,16 +1282,15 @@ export async function handleSelectMenu(
           .setLabel("❌ Rifiuta")
           .setStyle(ButtonStyle.Danger),
       );
-
-      try {
-        const ownerUser = await interaction.client.users.fetch(BOT_OWNER_ID).catch(() => null);
-        if (ownerUser) {
-          await ownerUser.send({ embeds: [ownerEmbed], components: [ownerRow] }).catch(() => null);
-        }
-      } catch { /* DM del proprietario chiusi */ }
+      await channel.send({
+        content: `*Staff — gestisci la candidatura di <@${userId}>:*`,
+        components: [staffRow],
+      });
 
       return interaction.reply({
-        content: `✅ La tua candidatura per **${job.name}** è stata inviata nel canale bando! Attendi la risposta del proprietario.`,
+        content:
+          `✅ La tua candidatura per **${job.name}** è stata pubblicata in <#${bandoChannelId}>!\n` +
+          `Vai nel canale, copia il template e compilalo. Attendi poi la risposta dello staff.`,
         ephemeral: true,
       });
     } else {
