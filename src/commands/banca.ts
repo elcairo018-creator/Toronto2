@@ -75,3 +75,39 @@ export async function mostracontoHandler(interaction: ChatInputCommandInteractio
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
+
+// ── /pannelloconto ────────────────────────────────────────────────────────────
+// Pannello accessibile a tutti: chiunque clicchi il bottone vede il proprio saldo
+// in modo privato (ephemeral).
+export const pannellocontoData = new SlashCommandBuilder()
+  .setName("pannelloconto")
+  .setDescription("Pubblica il pannello conto bancario (solo proprietario)");
+
+export async function pannellocontoHandler(interaction: ChatInputCommandInteraction) {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: "❌ Non hai i permessi per pubblicare questo pannello.", ephemeral: true });
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle("🏦 ₊˚ ℬᴀɴᴄᴀ 𝒯οяοηтο ₊˚ 💳")
+    .setDescription(
+      "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n" +
+      "🧸 ु°\n\n" +
+      "ᴄʟɪᴄᴄᴀ ɪʟ ᴘᴜʟsᴀɴᴛᴇ ǫᴜɪ sᴏᴛᴛᴏ ᴘᴇʀ ᴠɪsᴜᴀʟɪᴢᴢᴀʀᴇ ɪʟ ᴛᴜᴏ sᴀʟᴅᴏ ɪɴ ʙᴀɴᴄᴀ.\n" +
+      "ɪʟ sᴀʟᴅᴏ ᴇ ᴠɪsɪʙɪʟᴇ sᴏʟᴏ ᴀ ᴛᴇ 🤍\n\n" +
+      "🧸 ु°\n\n" +
+      "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n" +
+      "🪐 ˚ʚ♡ɞ˚ 🪐"
+    )
+    .setColor(0xB5D8F7)
+    .setTimestamp();
+
+  const button = new ButtonBuilder()
+    .setCustomId("conto_mostra")
+    .setLabel("💰 Visualizza Saldo")
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+
+  await sendPanel(interaction, { embeds: [embed], components: [row] });
+}
