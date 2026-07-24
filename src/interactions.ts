@@ -251,6 +251,47 @@ function getBandoTemplate(jobKey: string): string | null {
 export async function handleButton(interaction: ButtonInteraction) {
   const [action, ...args] = interaction.customId.split(":");
 
+  // ── conto_mostra: mostra saldo ephemeral a chi clicca ──────────────────────
+  if (action === "conto_mostra") {
+    const account = db
+      .prepare("SELECT * FROM accounts WHERE userId = ?")
+      .get(interaction.user.id) as { balance: number; pin: string | null } | undefined;
+
+    if (!account) {
+      return interaction.reply({
+        content: "❌ Non hai ancora un conto bancario. Usa `/apriconto` per aprirne uno.",
+        ephemeral: true,
+      });
+    }
+
+    const cards = db
+      .prepare("SELECT cardNumber FROM cards WHERE userId = ?")
+      .all(interaction.user.id) as { cardNumber: string }[];
+
+    const embed = new EmbedBuilder()
+      .setTitle("🏦 ₊˚ ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ ₊˚ 💳")
+      .setDescription(
+        "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n🤍 ु°",
+      )
+      .setColor(0xB5D8F7)
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .addFields(
+        { name: "ɪɴᴛᴇsᴛᴀᴛᴀʀɪᴏ", value: `<@${interaction.user.id}>`, inline: true },
+        { name: "sᴀʟᴅᴏ", value: `**€${account.balance}**`, inline: true },
+        {
+          name: "ᴄᴀʀᴛᴇ",
+          value: cards.length > 0
+            ? cards.map((c) => `\`${c.cardNumber}\``).join("\n")
+            : "Nessuna carta — usa 🏦 Apri Conto",
+          inline: false,
+        },
+      )
+      .setFooter({ text: "🪐 ˚ʚ♡ɞ˚ 🪐 • Solo tu puoi vedere questo messaggio" })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
   if (action === "banca_apri") {
     const existing = db
       .prepare("SELECT userId FROM accounts WHERE userId = ?")
@@ -1347,6 +1388,22 @@ export async function handleSelectMenu(
           .setLabel("❌ Rifiuta")
           .setStyle(ButtonStyle.Danger),
       );
+
+      // ── Routing candidatura: canale specifico del lavoro o DM allo staff ──
+      if (job.candidatureChannelId) {
+        const candChannel =
+          guild.channels.cache.get(job.candidatureChannelId) ??
+          await guild.channels.fetch(job.candidatureChannelId).catch(() => null);
+
+        if (candChannel && candChannel.isTextBased()) {
+          await candChannel.send({ embeds: [embed], components: [row] });
+          return interaction.reply({
+            content: `✅ La tua candidatura per **${job.name}** è stata inviata in <#${job.candidatureChannelId}>! Attendi la risposta dello staff.`,
+            ephemeral: true,
+          });
+        }
+        // Se il canale non è accessibile, si ricade sui DM allo staff
+      }
 
       let reached = 0;
       try {
