@@ -99,7 +99,8 @@ export const crealavoriData = new SlashCommandBuilder()
   .addStringOption((o) => o.setName("nome").setDescription("Nome del lavoro").setRequired(true))
   .addRoleOption((o) => o.setName("ruolo").setDescription("Ruolo Discord del lavoro"))
   .addIntegerOption((o) => o.setName("stipendio").setDescription("Stipendio giornaliero (€)").setMinValue(0))
-  .addIntegerOption((o) => o.setName("posti").setDescription("Posti massimi (lascia vuoto = illimitati)").setMinValue(1));
+  .addIntegerOption((o) => o.setName("posti").setDescription("Posti massimi (lascia vuoto = illimitati)").setMinValue(1))
+  .addChannelOption((o) => o.setName("canale_candidature").setDescription("Canale dove vengono inviate le candidature per questo lavoro"));
 
 export async function crealavoriHandler(interaction: ChatInputCommandInteraction) {
   if (!isAdmin(interaction)) {
@@ -110,28 +111,31 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
   const ruolo     = interaction.options.getRole("ruolo");
   const stipendio = interaction.options.getInteger("stipendio");
   const posti     = interaction.options.getInteger("posti");
+  const canale    = interaction.options.getChannel("canale_candidature");
 
   const existing = db.prepare("SELECT * FROM jobs WHERE name = ? COLLATE NOCASE").get(nome) as Job | undefined;
 
   if (existing) {
     // ── Aggiorna il lavoro esistente ────────────────────────────────────────
-    if (stipendio === null && posti === null && !ruolo) {
-      return interaction.reply({ content: `ℹ️ Il lavoro **${nome}** esiste già. Specifica almeno uno tra \`stipendio\`, \`posti\` o \`ruolo\` per aggiornarlo.`, ephemeral: true });
+    if (stipendio === null && posti === null && !ruolo && !canale) {
+      return interaction.reply({ content: `ℹ️ Il lavoro **${nome}** esiste già. Specifica almeno uno tra \`stipendio\`, \`posti\`, \`ruolo\` o \`canale_candidature\` per aggiornarlo.`, ephemeral: true });
     }
 
     if (stipendio !== null) db.prepare("UPDATE jobs SET salary = ? WHERE id = ?").run(stipendio, existing.id);
     if (posti !== null)     db.prepare("UPDATE jobs SET maxSlots = ? WHERE id = ?").run(posti, existing.id);
     if (ruolo)              db.prepare("UPDATE jobs SET roleId = ? WHERE id = ?").run(ruolo.id, existing.id);
+    if (canale)             db.prepare("UPDATE jobs SET candidatureChannelId = ? WHERE id = ?").run(canale.id, existing.id);
 
     const updated = db.prepare("SELECT * FROM jobs WHERE id = ?").get(existing.id) as Job;
     const embed = new EmbedBuilder()
       .setTitle("✏️ Lavoro Aggiornato")
       .setColor(0xFEE75C)
       .addFields(
-        { name: "Nome",      value: updated.name,                                          inline: true },
-        { name: "Ruolo",     value: `<@&${updated.roleId}>`,                               inline: true },
-        { name: "Stipendio", value: `€${updated.salary}`,                                  inline: true },
-        { name: "Posti",     value: updated.maxSlots ? String(updated.maxSlots) : "Illimitati", inline: true },
+        { name: "Nome",                value: updated.name,                                               inline: true },
+        { name: "Ruolo",               value: `<@&${updated.roleId}>`,                                    inline: true },
+        { name: "Stipendio",           value: `€${updated.salary}`,                                       inline: true },
+        { name: "Posti",               value: updated.maxSlots ? String(updated.maxSlots) : "Illimitati", inline: true },
+        { name: "Canale candidature",  value: updated.candidatureChannelId ? `<#${updated.candidatureChannelId}>` : "DM allo staff", inline: true },
       )
       .setTimestamp();
 
@@ -145,18 +149,19 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
     return interaction.reply({ content: "❌ Per creare un nuovo lavoro devi specificare il `ruolo`.", ephemeral: true });
   }
 
-  db.prepare("INSERT INTO jobs (name, roleId, salary, maxSlots) VALUES (?, ?, ?, ?)").run(
-    nome, ruolo.id, stipendio ?? 0, posti ?? null
+  db.prepare("INSERT INTO jobs (name, roleId, salary, maxSlots, candidatureChannelId) VALUES (?, ?, ?, ?, ?)").run(
+    nome, ruolo.id, stipendio ?? 0, posti ?? null, canale?.id ?? null
   );
 
   const embed = new EmbedBuilder()
     .setTitle("✅ Lavoro Creato")
     .setColor(0x57F287)
     .addFields(
-      { name: "Nome",      value: nome,                                    inline: true },
-      { name: "Ruolo",     value: `<@&${ruolo.id}>`,                       inline: true },
-      { name: "Stipendio", value: `€${stipendio ?? 0}`,                    inline: true },
-      { name: "Posti",     value: posti ? String(posti) : "Illimitati",    inline: true },
+      { name: "Nome",               value: nome,                                          inline: true },
+      { name: "Ruolo",              value: `<@&${ruolo.id}>`,                             inline: true },
+      { name: "Stipendio",          value: `€${stipendio ?? 0}`,                          inline: true },
+      { name: "Posti",              value: posti ? String(posti) : "Illimitati",          inline: true },
+      { name: "Canale candidature", value: canale ? `<#${canale.id}>` : "DM allo staff", inline: true },
     )
     .setTimestamp();
 
@@ -288,6 +293,77 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
     content: `✅ Lavoro **${nome}** eliminato. Ruolo rimosso a ${employees.length} dipendente/i.`,
     ephemeral: true,
   });
+}
+
+// ── /listalavori ──────────────────────────────────────────────────────────────
+// Pannello estetico (solo proprietario) che mostra tutti i lavori con
+// disponibilità (🟢 / 🔴) e posti rimanenti — stile Toronto Jobs.
+export const listalavoriData = new SlashCommandBuilder()
+  .setName("listalavori")
+  .setDescription("Pubblica il pannello estetico con tutti i lavori (solo proprietario)");
+
+export async function listalavoriHandler(interaction: ChatInputCommandInteraction) {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: "❌ Non hai i permessi per pubblicare questo pannello.", ephemeral: true });
+  }
+
+  const jobs = db.prepare("SELECT * FROM jobs ORDER BY name ASC").all() as Job[];
+
+  // Costruisci la lista lavori
+  const lines = jobs.map((j) => {
+    const disponibile = j.maxSlots === null || j.currentSlots < j.maxSlots;
+    const dot = disponibile ? "🟢" : "🔴";
+
+    let label = `﹕ ꒰ ${dot} ꒱ 𝒥ο𝒷 ﹒ ${j.name}`;
+    if (j.maxSlots !== null) {
+      const free = j.maxSlots - j.currentSlots;
+      label += ` ﹒ **${free}/${j.maxSlots}** posti`;
+    }
+    return `: ̗̀➛ ${dot} ${j.name}${j.maxSlots !== null ? ` ﹒ ${j.maxSlots - j.currentSlots} posto/i libero/i su ${j.maxSlots}` : ""}`;
+  });
+
+  const disponibileCount = jobs.filter((j) => j.maxSlots === null || j.currentSlots < j.maxSlots).length;
+
+  const description = [
+    `⏔⏔⏔ ꒰ 💼 ꒱ ⏔⏔⏔`,
+    `ʟᴀᴠᴏʀɪ ﹕ **${disponibileCount}** ᴅɪsᴘᴏɴɪʙɪʟɪ`,
+    `ℬᴇɴᴠᴇɴᴜᴛᴏ/ᴀ﹗ 𝒬ᴜɪ ᴛʀᴏᴠᴇʀᴀɪ ᴛᴜᴛᴛɪ ɪ ʟᴀᴠᴏʀɪ ᴅɪsᴘᴏɴɪʙɪʟɪ sᴜʟ sᴇʀᴠᴇʀ.`,
+    `𝒫ᴇʀ ᴄᴀɴᴅɪᴅᴀʀᴛɪ, ᴀᴘʀɪ ᴜɴ ᴘᴏsᴛ ɴᴇʟ ᴄᴀɴᴀʟᴇ ᴅᴇᴅɪᴄᴀᴛᴏ.`,
+    ``,
+    `🎧 ु°`,
+    `ʟᴀᴠᴏʀɪ ⌗`,
+    `🟢 ﹕ ᴅɪsᴘᴏɴɪʙɪʟɪ`,
+    `🔴 ﹕ ɴᴏɴ ᴅɪsᴘᴏɴɪʙɪʟɪ`,
+    `🧸 ु°`,
+    ``,
+    ...(jobs.length > 0
+      ? jobs.map((j) => {
+          const disponibile = j.maxSlots === null || j.currentSlots < j.maxSlots;
+          const dot = disponibile ? "🟢" : "🔴";
+          const slotsInfo = j.maxSlots !== null ? ` ﹒ **${j.maxSlots - j.currentSlots}** posto/i libero/i` : "";
+          return `: ̗̀➛ ${j.name} ${dot}${slotsInfo}`;
+        })
+      : ["*Nessun lavoro disponibile al momento.*"]),
+    ``,
+    `🤍 ु°`,
+    `📌 𝒫ᴇʀ ᴄᴀɴᴅɪᴅᴀʀᴛɪ ᴀ ᴘᴏʟɪᴢɪᴀ, ᴏsᴘᴇᴅᴀʟᴇ ᴏ ᴠɪɢɪʟɪ ᴅᴇʟ ғᴜᴏᴄᴏ ᴇ ᴏʙʙʟɪɢᴀᴛᴏʀɪᴏ ᴄᴏᴍᴘɪʟᴀʀᴇ ʟ'ᴀᴘᴘᴏsɪᴛᴏ ʙᴀɴᴅᴏ.`,
+    `𝒫ᴇʀ ᴛᴜᴛᴛɪ ɢʟɪ ᴀʟᴛʀɪ ʟᴀᴠᴏʀɪ ᴇ sᴜFFɪᴄɪᴇɴᴛᴇ ᴀᴘʀɪʀᴇ ᴜɴ ᴘᴏsᴛ ɴᴇʟ ᴄᴀɴᴀʟᴇ ᴅᴇᴅɪᴄᴀᴛᴏ.`,
+    `⏔⏔⏔ ꒰ 💼 ꒱ ⏔⏔⏔`,
+    ``,
+    `<@&1521493382273437757>`,
+    ``,
+    `🪐 ˚ʚ♡ɞ˚ 🪐`,
+    ``,
+    `Vuoi partecipare? Vai su <#${LAVORI_CHANNEL_ID}> per richiedere uno dei lavori disponibili.`,
+  ].join("\n");
+
+  const embed = new EmbedBuilder()
+    .setTitle("☕ ₊˚ 𝒯οяοηтο 𝒥ο𝒷ѕ ₊˚ 🦢")
+    .setDescription(description)
+    .setColor(0xF5D6E7)
+    .setTimestamp();
+
+  await sendPanel(interaction, { embeds: [embed] });
 }
 
 // ── licenziamento / dimissioni via pannello ───────────────────────────────────
