@@ -14,11 +14,13 @@ import { logger } from "./logger.js";
 import {
   apricontoData, apricontoHandler,
   mostracontoData, mostracontoHandler,
+  pannellocontoData, pannellocontoHandler,
 } from "./commands/banca.js";
 
 import {
   stipendioData, stipendioHandler,
   pannellolavoriData, pannellolavoriHandler,
+  listalavoriData, listalavoriHandler,
   crealavoriData, crealavoriHandler,
   eliminalavoroData, eliminalavoroHandler,
   pannellolicenziamentoData, pannellolicenziamentoHandler,
@@ -62,9 +64,11 @@ function reg(data: SlashCommandOptionsOnlyBuilder, handler: CommandHandler) {
 
 reg(apricontoData, apricontoHandler);
 reg(mostracontoData, mostracontoHandler);
+reg(pannellocontoData, pannellocontoHandler);
 reg(stipendioData, stipendioHandler);
 reg(dimissioniData, dimissioniHandler);
 reg(pannellolavoriData, pannellolavoriHandler);
+reg(listalavoriData, listalavoriHandler);
 reg(crealavoriData, crealavoriHandler);
 reg(eliminalavoroData, eliminalavoroHandler);
 reg(pannellolicenziamentoData, pannellolicenziamentoHandler);
