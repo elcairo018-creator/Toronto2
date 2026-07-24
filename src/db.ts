@@ -132,6 +132,12 @@ try {
   logger.error({ err }, "Errore migrazione saldo");
 }
 
+// ── Migrazione: aggiungi candidatureChannelId a jobs se non esiste ────────────
+try {
+  db.prepare("ALTER TABLE jobs ADD COLUMN candidatureChannelId TEXT").run();
+  logger.info("Migrazione jobs: aggiunta colonna candidatureChannelId");
+} catch { /* colonna già presente — ignora */ }
+
 // ── Carica lavori dal seed se la tabella è vuota ──────────────────────────────
 try {
   const jobCount = (
@@ -147,10 +153,10 @@ try {
     }>;
 
     const insert = db.prepare(
-      "INSERT OR IGNORE INTO jobs (name, roleId, salary, maxSlots) VALUES (?, ?, ?, ?)",
+      "INSERT OR IGNORE INTO jobs (name, roleId, salary, maxSlots, candidatureChannelId) VALUES (?, ?, ?, ?, ?)",
     );
     const insertMany = db.transaction((jobs: typeof seed) => {
-      for (const j of jobs) insert.run(j.name, j.roleId, j.salary, j.maxSlots);
+      for (const j of jobs) insert.run(j.name, j.roleId, j.salary, j.maxSlots, (j as any).candidatureChannelId ?? null);
     });
     insertMany(seed);
     logger.info(`Caricati ${seed.length} lavori da jobs_seed.json`);
@@ -163,7 +169,7 @@ try {
 export function saveJobsSeed(): void {
   try {
     const jobs = db
-      .prepare("SELECT name, roleId, salary, maxSlots FROM jobs")
+      .prepare("SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs")
       .all();
     fs.writeFileSync(JOBS_SEED_PATH, JSON.stringify(jobs, null, 2), "utf-8");
     logger.info("jobs_seed.json aggiornato");
@@ -187,6 +193,7 @@ export interface Job {
   salary: number;
   maxSlots: number | null;
   currentSlots: number;
+  candidatureChannelId: string | null;
 }
 
 export interface Employee {
