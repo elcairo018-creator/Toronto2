@@ -248,11 +248,14 @@ Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomp
 ⏔⏔⏔ ꒰ 🚒 ꒱ ⏔⏔⏔`;
 
 function getBandoTemplate(jobKey: string, jobName?: string): string {
-  if (["polizia", "poliziotto", "poliziotti", "agente"].includes(jobKey))
+  // Supporta sia chiave esatta che nome con più parole (es: "medico prova" → "medico")
+  const words = jobKey.split(/\s+/);
+  const matches = (keys: string[]) => keys.includes(jobKey) || words.some(w => keys.includes(w));
+  if (matches(["polizia", "poliziotto", "poliziotti", "agente"]))
     return BANDO_TEMPLATE_POLIZIA;
-  if (["medico", "medici", "dottore", "dottori", "ospedale", "infermiere", "infermieri"].includes(jobKey))
+  if (matches(["medico", "medici", "dottore", "dottori", "ospedale", "infermiere", "infermieri"]))
     return BANDO_TEMPLATE_OSPEDALE;
-  if (["pompiere", "pompieri", "vigile"].includes(jobKey))
+  if (matches(["pompiere", "pompieri", "vigile"]))
     return BANDO_TEMPLATE_POMPIERI;
   // Template generico per qualsiasi altro lavoro
   const nome = jobName ?? jobKey;
@@ -1379,7 +1382,7 @@ export async function handleSelectMenu(
       });
 
       // 2️⃣ Template specifico per il corpo
-      const template = getBandoTemplate(jobKey, job.name);
+      const template = getBandoTemplate(matchedBandoKey ?? jobKey, job.name);
       await channel.send({ content: template });
 
       // 3️⃣ Messaggio con bottoni accetta/rifiuta (solo staff può usarli)
