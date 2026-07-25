@@ -1336,7 +1336,12 @@ export async function handleSelectMenu(
     }
 
     const jobKey = job.name.toLowerCase().trim();
-    const bandoChannelId = job.candidatureChannelId ?? BANDO_CHANNELS[jobKey] ?? null;
+    // Cerca corrispondenza esatta, poi per parola (es: "medico prova" → "medico"), poi per prefisso
+    const matchedBandoKey =
+      Object.keys(BANDO_CHANNELS).find(k => jobKey === k) ??
+      Object.keys(BANDO_CHANNELS).find(k => jobKey.split(/\s+/).includes(k)) ??
+      Object.keys(BANDO_CHANNELS).find(k => jobKey.startsWith(k));
+    const bandoChannelId = job.candidatureChannelId ?? (matchedBandoKey ? BANDO_CHANNELS[matchedBandoKey] : null);
 
     if (bandoChannelId) {
       const channel =
