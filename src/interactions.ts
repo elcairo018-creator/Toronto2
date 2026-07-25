@@ -1295,7 +1295,7 @@ export async function handleSelectMenu(
     }
 
     const jobKey = job.name.toLowerCase().trim();
-    const bandoChannelId = BANDO_CHANNELS[jobKey] ?? job.candidatureChannelId ?? null;
+    const bandoChannelId = job.candidatureChannelId ?? BANDO_CHANNELS[jobKey] ?? null;
 
     if (bandoChannelId) {
       const channel =
