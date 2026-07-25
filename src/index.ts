@@ -1,4 +1,4 @@
-import {
+limport {
   Client,
   GatewayIntentBits,
   Partials,
@@ -22,7 +22,7 @@ import {
   pannellolavoriData, pannellolavoriHandler,
   listalavoriData, listalavoriHandler,
   crealavoriData, crealavoriHandler,
-  eliminalavoroData, eliminalavoroHandler,
+  eliminalavoroData, eliminalavoroHandler, eliminalavoroAutocomplete,
   pannellolicenziamentoData, pannellolicenziamentoHandler,
   dimissioniData, dimissioniHandler,
 } from "./commands/lavoro.js";
@@ -138,6 +138,8 @@ export async function startBot() {
         const cmdName = interaction.commandName;
         if (cmdName === "creaprodotto" || cmdName === "eliminaprodotto" || cmdName === "chiudinegozio") {
           await negozioAutocomplete(interaction);
+        } else if (cmdName === "eliminalavoro") {
+          await eliminalavoroAutocomplete(interaction);
         }
         return;
       }
