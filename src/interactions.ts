@@ -1,3 +1,4 @@
+
 import {
   EmbedBuilder,
   ButtonBuilder,
@@ -22,7 +23,15 @@ import db, {
   type Application,
   type ShopRequest,
 } from "./db.js";
-import { POSTINO_ROLE_ID, STAFF_ROLE_ID, OWNER_ROLE_ID, memberIsStaff } from "./utils.js";
+import {
+  POSTINO_ROLE_ID,
+  STAFF_ROLE_ID,
+  OWNER_ROLE_ID,
+  memberIsStaff,
+  updateListalavoriPanel,
+  COLORS,
+  FOOTER,
+} from "./utils.js";
 
 const BANDO_CHANNELS: Record<string, string> = {
   polizia: "1521494201513283744",
@@ -259,7 +268,7 @@ export async function handleButton(interaction: ButtonInteraction) {
 
     if (!account) {
       return interaction.reply({
-        content: "❌ Non hai ancora un conto bancario. Usa `/apriconto` per aprirne uno.",
+        content: "❌ Non hai ancora un conto bancario. Clicca **🏦 Apri Conto** nel pannello banca.",
         ephemeral: true,
       });
     }
@@ -270,19 +279,17 @@ export async function handleButton(interaction: ButtonInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle("🏦 ₊˚ ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ ₊˚ 💳")
-      .setDescription(
-        "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n🤍 ु°",
-      )
-      .setColor(0xB5D8F7)
+      .setDescription("⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n🤍 ु°")
+      .setColor(COLORS.banca)
       .setThumbnail(interaction.user.displayAvatarURL())
       .addFields(
         { name: "ɪɴᴛᴇsᴛᴀᴛᴀʀɪᴏ", value: `<@${interaction.user.id}>`, inline: true },
-        { name: "sᴀʟᴅᴏ", value: `**€${account.balance}**`, inline: true },
+        { name: "sᴀʟᴅᴏ",          value: `**€${account.balance}**`,  inline: true },
         {
           name: "ᴄᴀʀᴛᴇ",
           value: cards.length > 0
             ? cards.map((c) => `\`${c.cardNumber}\``).join("\n")
-            : "Nessuna carta — usa 🏦 Apri Conto",
+            : "Nessuna carta — clicca 💳 Crea Carta nel pannello",
           inline: false,
         },
       )
@@ -308,12 +315,15 @@ export async function handleButton(interaction: ButtonInteraction) {
     return interaction.reply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("🏦 Conto Aperto!")
+          .setTitle("🏦 ₊˚ ᴄᴏɴᴛᴏ ᴀᴘᴇʀᴛᴏ ₊˚ 💳")
           .setDescription(
-            "Il tuo conto è stato creato con successo con un saldo iniziale di **€500**!\nUsa **Crea PIN** e **Crea Carta** per completare la configurazione.",
+            "⏔⏔⏔ ꒰ 🏦 ꒱ ⏔⏔⏔\n\n🧸 ु°\n\n" +
+            "ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ ᴇ sᴛᴀᴛᴏ ᴄʀᴇᴀᴛᴏ ᴄᴏɴ ᴜɴ sᴀʟᴅᴏ ɪɴɪᴢɪᴀʟᴇ ᴅɪ **€500** 🤍\n" +
+            "ᴜsᴀ **🔑 Crea PIN** ᴇ **💳 Crea Carta** ᴘᴇʀ ᴄᴏᴍᴘʟᴇᴛᴀʀᴇ ʟᴀ ᴄᴏɴFɪɢᴜʀᴀᴢɪᴏɴᴇ.\n\n🧸 ु°"
           )
-          .setColor(0x57f287)
-          .addFields({ name: "Saldo iniziale", value: "€500", inline: true })
+          .setColor(COLORS.success)
+          .addFields({ name: "sᴀʟᴅᴏ ɪɴɪᴢɪᴀʟᴇ", value: "€500", inline: true })
+          .setFooter(FOOTER)
           .setTimestamp(),
       ],
       ephemeral: true,
@@ -377,14 +387,18 @@ export async function handleButton(interaction: ButtonInteraction) {
       "INSERT INTO cards (userId, cardNumber, cvv, expiry) VALUES (?, ?, ?, ?)",
     ).run(interaction.user.id, cardNumber, cvv, expiry);
     const embed = new EmbedBuilder()
-      .setTitle("💳 Carta Bancaria Creata")
-      .setColor(0x5865f2)
-      .addFields(
-        { name: "Numero Carta", value: `\`${cardNumber}\``, inline: false },
-        { name: "CVV", value: `||${cvv}||`, inline: true },
-        { name: "Scadenza", value: expiry, inline: true },
+      .setTitle("💳 ₊˚ ᴄᴀʀᴛᴀ ᴄʀᴇᴀᴛᴀ ₊˚ 🏦")
+      .setDescription(
+        "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n🧸 ु°\n\n" +
+        "ᴛɪᴇɴɪ ǫᴜᴇsᴛᴇ ɪɴFᴏʀᴍᴀᴢɪᴏɴɪ ᴀʟ sɪᴄᴜʀᴏ 🤍\n\n🧸 ु°"
       )
-      .setFooter({ text: "Tieni queste informazioni al sicuro!" })
+      .setColor(COLORS.banca)
+      .addFields(
+        { name: "ɴᴜᴍᴇʀᴏ ᴄᴀʀᴛᴀ", value: `\`${cardNumber}\``, inline: false },
+        { name: "ᴄᴠᴠ",           value: `||${cvv}||`,       inline: true  },
+        { name: "sᴄᴀᴅᴇɴᴢᴀ",      value: expiry,             inline: true  },
+      )
+      .setFooter(FOOTER)
       .setTimestamp();
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
@@ -522,6 +536,7 @@ export async function handleButton(interaction: ButtonInteraction) {
       /* guild non accessibile */
     }
 
+    await updateListalavoriPanel(interaction.client);
     await interaction.update({
       content: `✅ Candidatura di <@${app.userId}> per **${job.name}** **accettata**.`,
       components: [],
@@ -600,6 +615,7 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "negozio_open") {
+
     const shops = db
       .prepare("SELECT * FROM shops ORDER BY name ASC")
       .all() as Shop[];
@@ -965,8 +981,9 @@ export async function handleButton(interaction: ButtonInteraction) {
       }
     }
 
+    await updateListalavoriPanel(interaction.client);
     return interaction.update({
-      content: `📋 Hai dato le dimissioni da **${emp.jobName}**. Sei ora disoccupato e il ruolo ti è stato rimosso.`,
+      content: `🚪 Hai dato le dimissioni da **${emp.jobName}**. Sei ora disoccupato e il ruolo ti è stato rimosso.`,
       components: [],
       embeds: [],
     });
@@ -1061,7 +1078,7 @@ export async function handleButton(interaction: ButtonInteraction) {
       .get(interaction.user.id) as Account | undefined;
     if (!account) {
       return interaction.reply({
-        content: "❌ Non hai un conto bancario. Usa `/apriconto`.",
+        content: "❌ Non hai un conto bancario. Clicca **🏦 Apri Conto** nel pannello banca.",
         ephemeral: true,
       });
     }
@@ -1108,7 +1125,7 @@ export async function handleButton(interaction: ButtonInteraction) {
       .get(interaction.user.id) as Account | undefined;
     if (!account) {
       return interaction.reply({
-        content: "❌ Non hai un conto bancario. Usa `/apriconto`.",
+        content: "❌ Non hai un conto bancario. Clicca **🏦 Apri Conto** nel pannello banca.",
         ephemeral: true,
       });
     }
@@ -1678,6 +1695,7 @@ export async function handleSelectMenu(
       /* ignore */
     }
 
+    await updateListalavoriPanel(interaction.client);
     return interaction.reply({
       content: `✅ <@${userId}> è stato licenziato da **${job?.name ?? "il lavoro"}**.`,
       ephemeral: true,
@@ -1861,7 +1879,7 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
       .get(interaction.user.id) as Account | undefined;
     if (!account) {
       return interaction.reply({
-        content: "❌ Non hai un conto bancario. Usa `/apriconto`.",
+        content: "❌ Non hai un conto bancario. Clicca **🏦 Apri Conto** nel pannello banca.",
         ephemeral: true,
       });
     }
@@ -2081,7 +2099,7 @@ export async function handleModal(interaction: ModalSubmitInteraction) {
       .get(interaction.user.id) as Account | undefined;
     if (!senderAccount) {
       return interaction.reply({
-        content: "❌ Non hai un conto bancario. Usa `/apriconto`.",
+        content: "❌ Non hai un conto bancario. Clicca **🏦 Apri Conto** nel pannello banca.",
         ephemeral: true,
       });
     }
