@@ -7,12 +7,13 @@ import {
   type ChatInputCommandInteraction,
 } from "discord.js";
 import db, { type Account, type Card } from "../db.js";
-import { isAdmin, sendPanel } from "../utils.js";
+import { isAdmin, sendPanel, COLORS, FOOTER } from "../utils.js";
 
 export function randomDigits(n: number) {
   return Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
 }
 
+// ── /apriconto ────────────────────────────────────────────────────────────────
 export const apricontoData = new SlashCommandBuilder()
   .setName("apriconto")
   .setDescription("Pubblica il pannello della banca (solo proprietario)");
@@ -23,14 +24,20 @@ export async function apricontoHandler(interaction: ChatInputCommandInteraction)
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("🏦 Banca")
+    .setTitle("🏦 ₊˚ ℬᴀɴᴄᴀ 𝒯οяοηтο ₊˚ 💳")
     .setDescription(
-      "Usa i pulsanti qui sotto per gestire il tuo conto bancario.\n\n" +
-      "**Apri Conto** — crea il tuo conto se non ce l'hai ancora\n" +
-      "**Crea PIN** — imposta un PIN a 4 cifre\n" +
-      "**Crea Carta** — genera la tua carta virtuale"
+      "⏔⏔⏔ ꒰ 🏦 ꒱ ⏔⏔⏔\n\n" +
+      "🧸 ु°\n\n" +
+      "ᴜsᴀ ɪ ᴘᴜʟsᴀɴᴛɪ ǫᴜɪ sᴏᴛᴛᴏ ᴘᴇʀ ɢᴇsᴛɪʀᴇ ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ ʙᴀɴᴄᴀʀɪᴏ.\n\n" +
+      "🏦 **Apri Conto** — ᴄʀᴇᴀ ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ sᴇ ɴᴏɴ ᴄᴇ ʟ'ʜᴀɪ ᴀɴᴄᴏʀᴀ\n" +
+      "🔑 **Crea PIN** — ɪᴍᴘᴏsᴛᴀ ᴜɴ ᴘɪɴ ᴀ 4 ᴄɪFʀᴇ\n" +
+      "💳 **Crea Carta** — ɢᴇɴᴇʀᴀ ʟᴀ ᴛᴜᴀ ᴄᴀʀᴛᴀ ᴠɪʀᴛᴜᴀʟᴇ\n\n" +
+      "🧸 ु°\n\n" +
+      "⏔⏔⏔ ꒰ 🏦 ꒱ ⏔⏔⏔\n\n" +
+      "🪐 ˚ʚ♡ɞ˚ 🪐"
     )
-    .setColor(0x57F287)
+    .setColor(COLORS.banca)
+    .setFooter(FOOTER)
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -51,6 +58,7 @@ export async function apricontoHandler(interaction: ChatInputCommandInteraction)
   await sendPanel(interaction, { embeds: [embed], components: [row] });
 }
 
+// ── /mostraconto ──────────────────────────────────────────────────────────────
 export const mostracontoData = new SlashCommandBuilder()
   .setName("mostraconto")
   .setDescription("Mostra il tuo conto in banca");
@@ -63,22 +71,26 @@ export async function mostracontoHandler(interaction: ChatInputCommandInteractio
   const cards = db.prepare("SELECT * FROM cards WHERE userId = ?").all(interaction.user.id) as Card[];
 
   const embed = new EmbedBuilder()
-    .setTitle("🏦 Il Tuo Conto")
-    .setColor(0x5865F2)
+    .setTitle("🏦 ₊˚ ɪʟ ᴛᴜᴏ ᴄᴏɴᴛᴏ ₊˚ 💳")
+    .setDescription("⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n🤍 ु°")
+    .setColor(COLORS.banca)
     .setThumbnail(interaction.user.displayAvatarURL())
     .addFields(
-      { name: "Intestatario", value: `<@${interaction.user.id}>`, inline: true },
-      { name: "Saldo", value: `€${account.balance}`, inline: true },
-      { name: "Carte", value: cards.length > 0 ? cards.map((c) => `\`${c.cardNumber}\``).join("\n") : "Nessuna carta", inline: false },
+      { name: "ɪɴᴛᴇsᴛᴀᴛᴀʀɪᴏ", value: `<@${interaction.user.id}>`, inline: true },
+      { name: "sᴀʟᴅᴏ", value: `**€${account.balance}**`, inline: true },
+      {
+        name: "ᴄᴀʀᴛᴇ",
+        value: cards.length > 0 ? cards.map((c) => `\`${c.cardNumber}\``).join("\n") : "Nessuna carta",
+        inline: false,
+      },
     )
+    .setFooter(FOOTER)
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 // ── /pannelloconto ────────────────────────────────────────────────────────────
-// Pannello accessibile a tutti: chiunque clicchi il bottone vede il proprio saldo
-// in modo privato (ephemeral).
 export const pannellocontoData = new SlashCommandBuilder()
   .setName("pannelloconto")
   .setDescription("Pubblica il pannello conto bancario (solo proprietario)");
@@ -99,7 +111,8 @@ export async function pannellocontoHandler(interaction: ChatInputCommandInteract
       "⏔⏔⏔ ꒰ 💳 ꒱ ⏔⏔⏔\n\n" +
       "🪐 ˚ʚ♡ɞ˚ 🪐"
     )
-    .setColor(0xB5D8F7)
+    .setColor(COLORS.banca)
+    .setFooter(FOOTER)
     .setTimestamp();
 
   const button = new ButtonBuilder()
