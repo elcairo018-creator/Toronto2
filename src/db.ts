@@ -122,6 +122,12 @@ db.exec(`
     note      TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS panels (
+    name      TEXT PRIMARY KEY,
+    channelId TEXT NOT NULL,
+    messageId TEXT NOT NULL
+  );
 `);
 
 // ── Migrazione: conto con saldo 0 → €500 ─────────────────────────────────────
