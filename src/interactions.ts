@@ -31,6 +31,7 @@ import {
   COLORS,
   FOOTER,
 } from "./utils.js";
+import { logger } from "./logger.js";
 
 const BANDO_CHANNELS: Record<string, string> = {
   polizia: "1521494201513283744",
@@ -246,14 +247,54 @@ Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomp
 
 ⏔⏔⏔ ꒰ 🚒 ꒱ ⏔⏔⏔`;
 
-function getBandoTemplate(jobKey: string): string | null {
+function getBandoTemplate(jobKey: string, jobName?: string): string {
   if (["polizia", "poliziotto", "poliziotti", "agente"].includes(jobKey))
     return BANDO_TEMPLATE_POLIZIA;
   if (["medico", "medici", "dottore", "dottori", "ospedale", "infermiere", "infermieri"].includes(jobKey))
     return BANDO_TEMPLATE_OSPEDALE;
   if (["pompiere", "pompieri", "vigile"].includes(jobKey))
     return BANDO_TEMPLATE_POMPIERI;
-  return null;
+  // Template generico per qualsiasi altro lavoro
+  const nome = jobName ?? jobKey;
+  return `⏔⏔⏔ ꒰ 📋 ꒱ ⏔⏔⏔
+
+ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴀ • ${nome.toUpperCase()}
+
+Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomplete, poco curate o contenenti informazioni false verranno automaticamente rifiutate.
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ɪɴꜰᴏʀᴍᴀᴢɪᴏɴɪ
+
+➜ Nome e Cognome (RP):
+➜ ID di gioco:
+➜ Nickname Discord:
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴅᴏᴍᴀɴᴅᴇ
+
+① Perché desideri candidarti per ${nome}?
+
+② Perché dovremmo scegliere proprio te?
+
+③ Hai già avuto esperienze simili? Se sì, quali?
+
+④ Sai lavorare in squadra e seguire le indicazioni dei superiori? Motiva la tua risposta.
+
+⑤ Quanto tempo puoi dedicare a questo ruolo?
+
+⑥ C'è qualcosa che vorresti aggiungere alla tua candidatura?
+
+⊹₊˚‧︵‿₊୨ᰔ୧₊‿︵‧˚₊⊹
+
+ᴇꜱɪᴛᴏ
+
+🟢 Accettata
+🟡 In valutazione
+🔴 Rifiutata
+
+⏔⏔⏔ ꒰ 📋 ꒱ ⏔⏔⏔`;
 }
 
 export async function handleButton(interaction: ButtonInteraction) {
@@ -1300,11 +1341,21 @@ export async function handleSelectMenu(
     if (bandoChannelId) {
       const channel =
         guild.channels.cache.get(bandoChannelId) ??
-        (await guild.channels.fetch(bandoChannelId).catch(() => null));
+        (await guild.channels.fetch(bandoChannelId).catch((err) => {
+          logger.error({ err, bandoChannelId }, "Errore fetch canale bando da guild");
+          return null;
+        })) ??
+        (await interaction.client.channels.fetch(bandoChannelId).catch((err) => {
+          logger.error({ err, bandoChannelId }, "Errore fetch canale bando da client");
+          return null;
+        }));
 
       if (!channel || !channel.isTextBased()) {
+        logger.error({ bandoChannelId, jobKey, channel: channel?.id ?? null }, "Canale bando non accessibile");
         return interaction.reply({
-          content: "❌ Canale bando non trovato. Contatta un amministratore.",
+          content:
+            `❌ Non riesco ad accedere al canale bando per **${job.name}**.\n` +
+            `Assicurati che il bot abbia i permessi **Visualizza canale** e **Invia messaggi** nel canale <#${bandoChannelId}>.`,
           ephemeral: true,
         });
       }
@@ -1323,10 +1374,8 @@ export async function handleSelectMenu(
       });
 
       // 2️⃣ Template specifico per il corpo
-      const template = getBandoTemplate(jobKey);
-      if (template) {
-        await channel.send({ content: template });
-      }
+      const template = getBandoTemplate(jobKey, job.name);
+      await channel.send({ content: template });
 
       // 3️⃣ Messaggio con bottoni accetta/rifiuta (solo staff può usarli)
       const staffRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
