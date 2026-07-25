@@ -249,7 +249,7 @@ Benvenuto/a! Compila il seguente modulo in ogni sua parte. Le candidature incomp
 function getBandoTemplate(jobKey: string): string | null {
   if (["polizia", "poliziotto", "poliziotti", "agente"].includes(jobKey))
     return BANDO_TEMPLATE_POLIZIA;
-  if (["medico", "medici", "dottore", "dottori"].includes(jobKey))
+  if (["medico", "medici", "dottore", "dottori", "ospedale", "infermiere", "infermieri"].includes(jobKey))
     return BANDO_TEMPLATE_OSPEDALE;
   if (["pompiere", "pompieri", "vigile"].includes(jobKey))
     return BANDO_TEMPLATE_POMPIERI;
@@ -1295,7 +1295,7 @@ export async function handleSelectMenu(
     }
 
     const jobKey = job.name.toLowerCase().trim();
-    const bandoChannelId = BANDO_CHANNELS[jobKey];
+    const bandoChannelId = BANDO_CHANNELS[jobKey] ?? job.candidatureChannelId ?? null;
 
     if (bandoChannelId) {
       const channel =
