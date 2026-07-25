@@ -1358,7 +1358,7 @@ export async function handleSelectMenu(
           return null;
         }));
 
-      if (!channel || !channel.isTextBased()) {
+      if (!channel || !channel.isTextBased() || channel.isDMBased()) {
         logger.error({ bandoChannelId, jobKey, channel: channel?.id ?? null }, "Canale bando non accessibile");
         return interaction.reply({
           content:
