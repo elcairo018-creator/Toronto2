@@ -171,17 +171,66 @@ try {
   logger.error({ err }, "Errore caricamento seed lavori");
 }
 
-// ── Esporta snapshot dei lavori in jobs_seed.json ─────────────────────────────
+// ── Esporta snapshot dei lavori in jobs_seed.json e su GitHub ─────────────────
 export function saveJobsSeed(): void {
   try {
     const jobs = db
       .prepare("SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs")
       .all();
-    fs.writeFileSync(JOBS_SEED_PATH, JSON.stringify(jobs, null, 2), "utf-8");
-    logger.info("jobs_seed.json aggiornato");
+    const content = JSON.stringify(jobs, null, 2);
+    fs.writeFileSync(JOBS_SEED_PATH, content, "utf-8");
+    logger.info("jobs_seed.json aggiornato (locale)");
+    // Push asincrono su GitHub — non blocca il bot se fallisce
+    pushJobsSeedToGitHub(content).catch((err) =>
+      logger.error({ err }, "Errore push jobs_seed.json su GitHub"),
+    );
   } catch (err) {
     logger.error({ err }, "Errore salvataggio seed lavori");
   }
+}
+
+async function pushJobsSeedToGitHub(content: string): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPO; // es: "elcairo018-creator/Toronto2"
+  if (!token || !repo) return;
+
+  const branch = process.env.GITHUB_BRANCH ?? "main";
+  const apiBase = `https://api.github.com/repos/${repo}/contents/jobs_seed.json`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": "toronto-economy-bot",
+    Accept: "application/vnd.github+json",
+  };
+
+  // Recupera SHA del file attuale (necessario per aggiornarlo)
+  let sha: string | undefined;
+  try {
+    const getRes = await fetch(`${apiBase}?ref=${branch}`, { headers });
+    if (getRes.ok) {
+      const data = (await getRes.json()) as { sha?: string };
+      sha = data.sha;
+    }
+  } catch { /* file non esiste ancora — primo push */ }
+
+  const body: Record<string, unknown> = {
+    message: "chore: aggiorna jobs_seed.json [skip ci]",
+    content: Buffer.from(content).toString("base64"),
+    branch,
+  };
+  if (sha) body.sha = sha;
+
+  const putRes = await fetch(apiBase, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!putRes.ok) {
+    const text = await putRes.text();
+    throw new Error(`GitHub API ${putRes.status}: ${text}`);
+  }
+  logger.info("jobs_seed.json sincronizzato su GitHub");
 }
 
 // ── Interfacce TypeScript ─────────────────────────────────────────────────────
