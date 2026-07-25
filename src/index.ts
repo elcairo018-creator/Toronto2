@@ -1,4 +1,4 @@
-limport {
+import {
   Client,
   GatewayIntentBits,
   Partials,
