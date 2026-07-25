@@ -5,9 +5,16 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   type ChatInputCommandInteraction,
+  type AutocompleteInteraction,
 } from "discord.js";
 import db, { type Job, type Employee, saveJobsSeed } from "../db.js";
-import { isAdmin, LAVORI_CHANNEL_ID, sendPanel } from "../utils.js";
+import {
+  isAdmin,
+  sendPanel,
+  buildListalavoriEmbed,
+  COLORS,
+  FOOTER,
+} from "../utils.js";
 
 // ── /stipendio ────────────────────────────────────────────────────────────────
 export const stipendioData = new SlashCommandBuilder()
@@ -17,7 +24,10 @@ export const stipendioData = new SlashCommandBuilder()
 export async function stipendioHandler(interaction: ChatInputCommandInteraction) {
   const account = db.prepare("SELECT * FROM accounts WHERE userId = ?").get(interaction.user.id);
   if (!account) {
-    return interaction.reply({ content: "❌ Non hai un conto bancario. Usa `/apriconto` prima.", ephemeral: true });
+    return interaction.reply({
+      content: "❌ Non hai un conto bancario. Aprilo dal pannello 🏦 Banca.",
+      ephemeral: true,
+    });
   }
 
   const emp = db.prepare(`
@@ -29,17 +39,22 @@ export async function stipendioHandler(interaction: ChatInputCommandInteraction)
   `).get(interaction.user.id) as (Employee & { jobName: string; salary: number }) | undefined;
 
   if (!emp) {
-    return interaction.reply({ content: "❌ Non hai un lavoro. Candidati tramite il pannello lavori.", ephemeral: true });
+    return interaction.reply({
+      content: "❌ Non hai un lavoro. Candidati tramite il pannello lavori.",
+      ephemeral: true,
+    });
   }
 
   const now = new Date();
   if (emp.lastSalary) {
     const last = new Date(emp.lastSalary);
-    const diffMs = now.getTime() - last.getTime();
-    const diffH = diffMs / (1000 * 60 * 60);
+    const diffH = (now.getTime() - last.getTime()) / (1000 * 60 * 60);
     if (diffH < 24) {
       const remaining = Math.ceil(24 - diffH);
-      return interaction.reply({ content: `❌ Hai già ritirato lo stipendio. Riprova tra **${remaining} ore**.`, ephemeral: true });
+      return interaction.reply({
+        content: `❌ Hai già ritirato lo stipendio. Riprova tra **${remaining} ore**.`,
+        ephemeral: true,
+      });
     }
   }
 
@@ -49,20 +64,20 @@ export async function stipendioHandler(interaction: ChatInputCommandInteraction)
     .run(emp.salary, interaction.user.id);
 
   const embed = new EmbedBuilder()
-    .setTitle("💰 Stipendio Ritirato!")
-    .setColor(0x57F287)
+    .setTitle("💰 ₊˚ sᴛɪᴘᴇɴᴅɪᴏ ʀɪᴛɪʀᴀᴛᴏ ₊˚ 🎉")
+    .setDescription("⏔⏔⏔ ꒰ 💰 ꒱ ⏔⏔⏔\n\n🧸 ु°")
+    .setColor(COLORS.success)
     .addFields(
-      { name: "Lavoro", value: emp.jobName, inline: true },
-      { name: "Importo", value: `€${emp.salary}`, inline: true },
+      { name: "ʟᴀᴠᴏʀᴏ",    value: emp.jobName,       inline: true },
+      { name: "ɪᴍᴘᴏʀᴛᴏ",   value: `€${emp.salary}`,  inline: true },
     )
+    .setFooter(FOOTER)
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 // ── /pannellolavori ───────────────────────────────────────────────────────────
-// Solo proprietario: pubblica un messaggio con un bottone "Candidati ai Lavori".
-// Cliccando si apre una tendina (StringSelectMenu) con solo i nomi dei lavori.
 export const pannellolavoriData = new SlashCommandBuilder()
   .setName("pannellolavori")
   .setDescription("Pubblica il pannello per candidarsi a un lavoro (solo proprietario)");
@@ -73,26 +88,30 @@ export async function pannellolavoriHandler(interaction: ChatInputCommandInterac
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("💼 Lavori Disponibili")
-    .setDescription("Clicca il pulsante qui sotto per vedere i lavori disponibili e candidarti.")
-    .setColor(0x5865F2)
-    .setFooter({ text: "Apri il menu per candidarti" })
+    .setTitle("💼 ₊˚ 𝒯οяοηтο 𝒥ο𝒷ѕ ₊˚ 📋")
+    .setDescription(
+      "⏔⏔⏔ ꒰ 📋 ꒱ ⏔⏔⏔\n\n" +
+      "🧸 ु°\n\n" +
+      "ᴄʟɪᴄᴄᴀ ɪʟ ᴘᴜʟsᴀɴᴛᴇ ᴘᴇʀ ᴠᴇᴅᴇʀᴇ ɪ ʟᴀᴠᴏʀɪ ᴅɪsᴘᴏɴɪʙɪʟɪ ᴇ ᴄᴀɴᴅɪᴅᴀʀᴛɪ.\n\n" +
+      "🧸 ु°\n\n" +
+      "⏔⏔⏔ ꒰ 📋 ꒱ ⏔⏔⏔\n\n" +
+      "🪐 ˚ʚ♡ɞ˚ 🪐"
+    )
+    .setColor(COLORS.lavori)
+    .setFooter(FOOTER)
     .setTimestamp();
 
   const button = new ButtonBuilder()
     .setCustomId("candidatura_open")
-    .setLabel("Candidati ai Lavori")
-    .setStyle(ButtonStyle.Primary)
-    .setEmoji("📋");
+    .setLabel("📋 Candidati ai Lavori")
+    .setStyle(ButtonStyle.Primary);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
 
   await sendPanel(interaction, { embeds: [embed], components: [row] });
 }
 
-// ── /crealavoro (unifica creazione + aggiornamento stipendio) ─────────────────
-// Se il lavoro NON esiste → lo crea.
-// Se il lavoro ESISTE GIÀ → aggiorna stipendio e/o posti.
+// ── /crealavoro ───────────────────────────────────────────────────────────────
 export const crealavoriData = new SlashCommandBuilder()
   .setName("crealavoro")
   .setDescription("Crea un lavoro o aggiorna stipendio/posti (solo proprietario)")
@@ -116,9 +135,11 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
   const existing = db.prepare("SELECT * FROM jobs WHERE name = ? COLLATE NOCASE").get(nome) as Job | undefined;
 
   if (existing) {
-    // ── Aggiorna il lavoro esistente ────────────────────────────────────────
     if (stipendio === null && posti === null && !ruolo && !canale) {
-      return interaction.reply({ content: `ℹ️ Il lavoro **${nome}** esiste già. Specifica almeno uno tra \`stipendio\`, \`posti\`, \`ruolo\` o \`canale_candidature\` per aggiornarlo.`, ephemeral: true });
+      return interaction.reply({
+        content: `ℹ️ Il lavoro **${nome}** esiste già. Specifica almeno uno tra \`stipendio\`, \`posti\`, \`ruolo\` o \`canale_candidature\` per aggiornarlo.`,
+        ephemeral: true,
+      });
     }
 
     if (stipendio !== null) db.prepare("UPDATE jobs SET salary = ? WHERE id = ?").run(stipendio, existing.id);
@@ -127,24 +148,27 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
     if (canale)             db.prepare("UPDATE jobs SET candidatureChannelId = ? WHERE id = ?").run(canale.id, existing.id);
 
     const updated = db.prepare("SELECT * FROM jobs WHERE id = ?").get(existing.id) as Job;
+
     const embed = new EmbedBuilder()
-      .setTitle("✏️ Lavoro Aggiornato")
-      .setColor(0xFEE75C)
+      .setTitle("✏️ ₊˚ ʟᴀᴠᴏʀᴏ ᴀɢɢɪᴏʀɴᴀᴛᴏ ₊˚")
+      .setDescription("⏔⏔⏔ ꒰ ✏️ ꒱ ⏔⏔⏔\n\n🧸 ु°")
+      .setColor(COLORS.warning)
       .addFields(
-        { name: "Nome",                value: updated.name,                                               inline: true },
-        { name: "Ruolo",               value: `<@&${updated.roleId}>`,                                    inline: true },
-        { name: "Stipendio",           value: `€${updated.salary}`,                                       inline: true },
-        { name: "Posti",               value: updated.maxSlots ? String(updated.maxSlots) : "Illimitati", inline: true },
-        { name: "Canale candidature",  value: updated.candidatureChannelId ? `<#${updated.candidatureChannelId}>` : "DM allo staff", inline: true },
+        { name: "ɴᴏᴍᴇ",               value: updated.name,                                                                    inline: true },
+        { name: "ʀᴜᴏʟᴏ",              value: `<@&${updated.roleId}>`,                                                         inline: true },
+        { name: "sᴛɪᴘᴇɴᴅɪᴏ",          value: `€${updated.salary}`,                                                            inline: true },
+        { name: "ᴘᴏsᴛɪ",              value: updated.maxSlots ? String(updated.maxSlots) : "Illimitati",                      inline: true },
+        { name: "ᴄᴀɴᴀʟᴇ ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴇ", value: updated.candidatureChannelId ? `<#${updated.candidatureChannelId}>` : "DM staff", inline: true },
       )
+      .setFooter(FOOTER)
       .setTimestamp();
 
-    // Salva il seed aggiornato così sopravvive ai riavvii
     saveJobsSeed();
+    // Aggiorna il pannello listalavori se pubblicato
+    await updateListalavoriIfPublished(interaction.client);
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  // ── Crea nuovo lavoro ──────────────────────────────────────────────────────
   if (!ruolo) {
     return interaction.reply({ content: "❌ Per creare un nuovo lavoro devi specificare il `ruolo`.", ephemeral: true });
   }
@@ -154,27 +178,25 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
   );
 
   const embed = new EmbedBuilder()
-    .setTitle("✅ Lavoro Creato")
-    .setColor(0x57F287)
+    .setTitle("✅ ₊˚ ʟᴀᴠᴏʀᴏ ᴄʀᴇᴀᴛᴏ ₊˚")
+    .setDescription("⏔⏔⏔ ꒰ ✅ ꒱ ⏔⏔⏔\n\n🧸 ु°")
+    .setColor(COLORS.success)
     .addFields(
-      { name: "Nome",               value: nome,                                          inline: true },
-      { name: "Ruolo",              value: `<@&${ruolo.id}>`,                             inline: true },
-      { name: "Stipendio",          value: `€${stipendio ?? 0}`,                          inline: true },
-      { name: "Posti",              value: posti ? String(posti) : "Illimitati",          inline: true },
-      { name: "Canale candidature", value: canale ? `<#${canale.id}>` : "DM allo staff", inline: true },
+      { name: "ɴᴏᴍᴇ",               value: nome,                                              inline: true },
+      { name: "ʀᴜᴏʟᴏ",              value: `<@&${ruolo.id}>`,                                 inline: true },
+      { name: "sᴛɪᴘᴇɴᴅɪᴏ",          value: `€${stipendio ?? 0}`,                              inline: true },
+      { name: "ᴘᴏsᴛɪ",              value: posti ? String(posti) : "Illimitati",              inline: true },
+      { name: "ᴄᴀɴᴀʟᴇ ᴄᴀɴᴅɪᴅᴀᴛᴜʀᴇ", value: canale ? `<#${canale.id}>` : "DM allo staff",     inline: true },
     )
+    .setFooter(FOOTER)
     .setTimestamp();
 
-  // Salva il seed così il lavoro sopravvive ai riavvii/aggiornamenti
   saveJobsSeed();
-  await interaction.reply({ embeds: [embed] });
+  await updateListalavoriIfPublished(interaction.client);
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-// ── /pannellolicenziamento ──────────────────────────────────────────────────
-// Pannello con due pulsanti:
-//  - "Licenzia Dipendente" (solo staff) → tendina con i dipendenti da licenziare.
-//  - "Dimettiti" (chiunque) → il dipendente lascia da solo il proprio lavoro,
-//    con un passaggio di conferma prima di rendere effettive le dimissioni.
+// ── /pannellolicenziamento ────────────────────────────────────────────────────
 export const pannellolicenziamentoData = new SlashCommandBuilder()
   .setName("pannellolicenziamento")
   .setDescription("Pubblica il pannello per licenziare dipendenti o dimettersi");
@@ -185,24 +207,28 @@ export async function pannellolicenziamentoHandler(interaction: ChatInputCommand
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("🔥 Gestione Impieghi")
+    .setTitle("🔥 ₊˚ ɢᴇsᴛɪᴏɴᴇ ɪᴍᴘɪᴇɢʜɪ ₊˚ 🚪")
     .setDescription(
-      "**Licenzia Dipendente** (solo staff) — seleziona un dipendente da licenziare.\n" +
-      "**Dimettiti** — lascia da solo il tuo lavoro attuale."
+      "⏔⏔⏔ ꒰ 🔥 ꒱ ⏔⏔⏔\n\n" +
+      "🧸 ु°\n\n" +
+      "🔥 **Licenzia Dipendente** ﹕ sᴏʟᴏ sᴛᴀFF — sᴇʟᴇᴢɪᴏɴᴀ ᴜɴ ᴅɪᴘᴇɴᴅᴇɴᴛᴇ ᴅᴀ ʟɪᴄᴇɴᴢɪᴀʀᴇ.\n" +
+      "🚪 **Dimettiti** ﹕ ʟᴀsᴄɪᴀ ᴅᴀ sᴏʟᴏ ɪʟ ᴛᴜᴏ ʟᴀᴠᴏʀᴏ ᴀᴛᴛᴜᴀʟᴇ.\n\n" +
+      "🧸 ु°\n\n" +
+      "⏔⏔⏔ ꒰ 🔥 ꒱ ⏔⏔⏔\n\n" +
+      "🪐 ˚ʚ♡ɞ˚ 🪐"
     )
-    .setColor(0xED4245)
+    .setColor(COLORS.danger)
+    .setFooter(FOOTER)
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("licenziamento_open")
-      .setLabel("Licenzia Dipendente")
-      .setEmoji("🔥")
+      .setLabel("🔥 Licenzia Dipendente")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId("dimissioni_open")
-      .setLabel("Dimettiti")
-      .setEmoji("🚪")
+      .setLabel("🚪 Dimettiti")
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -210,8 +236,6 @@ export async function pannellolicenziamentoHandler(interaction: ChatInputCommand
 }
 
 // ── /dimissioni ───────────────────────────────────────────────────────────────
-// Tutti possono usarlo — il dipendente si licenzia da solo (via comando slash,
-// senza passare dal pannello/bottone di conferma).
 export const dimissioniData = new SlashCommandBuilder()
   .setName("dimissioni")
   .setDescription("Dai le dimissioni dal tuo lavoro attuale");
@@ -231,34 +255,50 @@ export async function dimissioniHandler(interaction: ChatInputCommandInteraction
     return interaction.reply({ content: "❌ Non sei assunto in nessun lavoro.", ephemeral: true });
   }
 
-  // Rimuovi dal DB e aggiorna i posti
   db.prepare("DELETE FROM employees WHERE userId = ? AND jobId = ?").run(userId, emp.jobId);
   db.prepare("UPDATE jobs SET currentSlots = MAX(0, currentSlots - 1) WHERE id = ?").run(emp.jobId);
 
-  // Rimuovi il ruolo Discord
   const guild = interaction.guild!;
   try {
     const member = await guild.members.fetch(userId).catch(() => null);
-    if (member) {
-      await member.roles.remove(emp.roleId).catch(() => null);
-    }
+    if (member) await member.roles.remove(emp.roleId).catch(() => null);
   } catch { /* ignora */ }
 
+  await updateListalavoriIfPublished(interaction.client);
+
   const embed = new EmbedBuilder()
-    .setTitle("🚪 Dimissioni Accettate")
-    .setDescription(`Hai lasciato il lavoro di **${emp.jobName}**.`)
-    .setColor(0xED4245)
+    .setTitle("🚪 ₊˚ ᴅɪᴍɪssɪᴏɴɪ ᴀᴄᴄᴇᴛᴛᴀᴛᴇ ₊˚")
+    .setDescription(
+      "⏔⏔⏔ ꒰ 🚪 ꒱ ⏔⏔⏔\n\n" +
+      `🧸 ु°\n\nʜᴀɪ ʟᴀsᴄɪᴀᴛᴏ ɪʟ ʟᴀᴠᴏʀᴏ ᴅɪ **${emp.jobName}**.\n\n🧸 ु°`
+    )
+    .setColor(COLORS.danger)
     .setThumbnail(interaction.user.displayAvatarURL())
+    .setFooter(FOOTER)
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-// ── /eliminalavoro ────────────────────────────────────────────────────────────
+// ── /eliminalavoro (con autocomplete) ────────────────────────────────────────
 export const eliminalavoroData = new SlashCommandBuilder()
   .setName("eliminalavoro")
   .setDescription("Elimina un lavoro (solo proprietario)")
-  .addStringOption((o) => o.setName("nome").setDescription("Nome del lavoro da eliminare").setRequired(true));
+  .addStringOption((o) =>
+    o.setName("nome")
+      .setDescription("Nome del lavoro da eliminare")
+      .setRequired(true)
+      .setAutocomplete(true)
+  );
+
+export async function eliminalavoroAutocomplete(interaction: AutocompleteInteraction) {
+  const focused = interaction.options.getFocused().toLowerCase();
+  const jobs = db.prepare("SELECT name FROM jobs ORDER BY name ASC").all() as { name: string }[];
+  const filtered = jobs
+    .filter((j) => j.name.toLowerCase().includes(focused))
+    .slice(0, 25);
+  await interaction.respond(filtered.map((j) => ({ name: j.name, value: j.name })));
+}
 
 export async function eliminalavoroHandler(interaction: ChatInputCommandInteraction) {
   if (!isAdmin(interaction)) {
@@ -271,33 +311,36 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
     return interaction.reply({ content: `❌ Lavoro "${nome}" non trovato.`, ephemeral: true });
   }
 
-  // Rimuovi il ruolo Discord a tutti i dipendenti che avevano questo lavoro
   const employees = db.prepare("SELECT userId FROM employees WHERE jobId = ?").all(job.id) as { userId: string }[];
   const guild = interaction.guild;
   if (guild) {
     for (const emp of employees) {
       try {
         const member = await guild.members.fetch(emp.userId).catch(() => null);
-        if (member) {
-          await member.roles.remove(job.roleId).catch(() => null);
-        }
-      } catch { /* ignora se il ruolo non esiste più */ }
+        if (member) await member.roles.remove(job.roleId).catch(() => null);
+      } catch { /* ignora */ }
     }
   }
 
   db.prepare("DELETE FROM jobs WHERE id = ?").run(job.id);
-  // Aggiorna il seed dopo l'eliminazione
   saveJobsSeed();
+  await updateListalavoriIfPublished(interaction.client);
 
-  await interaction.reply({
-    content: `✅ Lavoro **${nome}** eliminato. Ruolo rimosso a ${employees.length} dipendente/i.`,
-    ephemeral: true,
-  });
+  const embed = new EmbedBuilder()
+    .setTitle("🗑️ ₊˚ ʟᴀᴠᴏʀᴏ ᴇʟɪᴍɪɴᴀᴛᴏ ₊˚")
+    .setDescription(
+      "⏔⏔⏔ ꒰ 🗑️ ꒱ ⏔⏔⏔\n\n🧸 ु°\n\n" +
+      `ɪʟ ʟᴀᴠᴏʀᴏ **${nome}** ᴇ sᴛᴀᴛᴏ ᴇʟɪᴍɪɴᴀᴛᴏ.\n` +
+      `ʀᴜᴏʟᴏ ʀɪᴍᴏssᴏ ᴀ **${employees.length}** ᴅɪᴘᴇɴᴅᴇɴᴛᴇ/ɪ.\n\n🧸 ु°`
+    )
+    .setColor(COLORS.danger)
+    .setFooter(FOOTER)
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 // ── /listalavori ──────────────────────────────────────────────────────────────
-// Pannello estetico (solo proprietario) che mostra tutti i lavori con
-// disponibilità (🟢 / 🔴) e posti rimanenti — stile Toronto Jobs.
 export const listalavoriData = new SlashCommandBuilder()
   .setName("listalavori")
   .setDescription("Pubblica il pannello estetico con tutti i lavori (solo proprietario)");
@@ -307,66 +350,18 @@ export async function listalavoriHandler(interaction: ChatInputCommandInteractio
     return interaction.reply({ content: "❌ Non hai i permessi per pubblicare questo pannello.", ephemeral: true });
   }
 
-  const jobs = db.prepare("SELECT * FROM jobs ORDER BY name ASC").all() as Job[];
+  const embed = buildListalavoriEmbed();
+  const msg = await sendPanel(interaction, { embeds: [embed] });
 
-  // Costruisci la lista lavori
-  const lines = jobs.map((j) => {
-    const disponibile = j.maxSlots === null || j.currentSlots < j.maxSlots;
-    const dot = disponibile ? "🟢" : "🔴";
-
-    let label = `﹕ ꒰ ${dot} ꒱ 𝒥ο𝒷 ﹒ ${j.name}`;
-    if (j.maxSlots !== null) {
-      const free = j.maxSlots - j.currentSlots;
-      label += ` ﹒ **${free}/${j.maxSlots}** posti`;
-    }
-    return `: ̗̀➛ ${dot} ${j.name}${j.maxSlots !== null ? ` ﹒ ${j.maxSlots - j.currentSlots} posto/i libero/i su ${j.maxSlots}` : ""}`;
-  });
-
-  const disponibileCount = jobs.filter((j) => j.maxSlots === null || j.currentSlots < j.maxSlots).length;
-
-  const description = [
-    `⏔⏔⏔ ꒰ 💼 ꒱ ⏔⏔⏔`,
-    `ʟᴀᴠᴏʀɪ ﹕ **${disponibileCount}** ᴅɪsᴘᴏɴɪʙɪʟɪ`,
-    `ℬᴇɴᴠᴇɴᴜᴛᴏ/ᴀ﹗ 𝒬ᴜɪ ᴛʀᴏᴠᴇʀᴀɪ ᴛᴜᴛᴛɪ ɪ ʟᴀᴠᴏʀɪ ᴅɪsᴘᴏɴɪʙɪʟɪ sᴜʟ sᴇʀᴠᴇʀ.`,
-    `𝒫ᴇʀ ᴄᴀɴᴅɪᴅᴀʀᴛɪ, ᴀᴘʀɪ ᴜɴ ᴘᴏsᴛ ɴᴇʟ ᴄᴀɴᴀʟᴇ ᴅᴇᴅɪᴄᴀᴛᴏ.`,
-    ``,
-    `🎧 ु°`,
-    `ʟᴀᴠᴏʀɪ ⌗`,
-    `🟢 ﹕ ᴅɪsᴘᴏɴɪʙɪʟɪ`,
-    `🔴 ﹕ ɴᴏɴ ᴅɪsᴘᴏɴɪʙɪʟɪ`,
-    `🧸 ु°`,
-    ``,
-    ...(jobs.length > 0
-      ? jobs.map((j) => {
-          const disponibile = j.maxSlots === null || j.currentSlots < j.maxSlots;
-          const dot = disponibile ? "🟢" : "🔴";
-          const slotsInfo = j.maxSlots !== null ? ` ﹒ **${j.maxSlots - j.currentSlots}** posto/i libero/i` : "";
-          return `: ̗̀➛ ${j.name} ${dot}${slotsInfo}`;
-        })
-      : ["*Nessun lavoro disponibile al momento.*"]),
-    ``,
-    `🤍 ु°`,
-    `📌 𝒫ᴇʀ ᴄᴀɴᴅɪᴅᴀʀᴛɪ ᴀ ᴘᴏʟɪᴢɪᴀ, ᴏsᴘᴇᴅᴀʟᴇ ᴏ ᴠɪɢɪʟɪ ᴅᴇʟ ғᴜᴏᴄᴏ ᴇ ᴏʙʙʟɪɢᴀᴛᴏʀɪᴏ ᴄᴏᴍᴘɪʟᴀʀᴇ ʟ'ᴀᴘᴘᴏsɪᴛᴏ ʙᴀɴᴅᴏ.`,
-    `𝒫ᴇʀ ᴛᴜᴛᴛɪ ɢʟɪ ᴀʟᴛʀɪ ʟᴀᴠᴏʀɪ ᴇ sᴜFFɪᴄɪᴇɴᴛᴇ ᴀᴘʀɪʀᴇ ᴜɴ ᴘᴏsᴛ ɴᴇʟ ᴄᴀɴᴀʟᴇ ᴅᴇᴅɪᴄᴀᴛᴏ.`,
-    `⏔⏔⏔ ꒰ 💼 ꒱ ⏔⏔⏔`,
-    ``,
-    `<@&1521493382273437757>`,
-    ``,
-    `🪐 ˚ʚ♡ɞ˚ 🪐`,
-    ``,
-    `Vuoi partecipare? Vai su <#${LAVORI_CHANNEL_ID}> per richiedere uno dei lavori disponibili.`,
-  ].join("\n");
-
-  const embed = new EmbedBuilder()
-    .setTitle("☕ ₊˚ 𝒯οяοηтο 𝒥ο𝒷ѕ ₊˚ 🦢")
-    .setDescription(description)
-    .setColor(0xF5D6E7)
-    .setTimestamp();
-
-  await sendPanel(interaction, { embeds: [embed] });
+  // Salva riferimento per aggiornamenti in tempo reale
+  if (msg) {
+    db.prepare("INSERT OR REPLACE INTO panels (name, channelId, messageId) VALUES (?, ?, ?)")
+      .run("listalavori", msg.channelId, msg.id);
+  }
 }
 
-// ── licenziamento / dimissioni via pannello ───────────────────────────────────
-// La logica di selezione dipendente ("licenziamento_select"), le dimissioni con
-// conferma ("dimissioni_open" / "dimissioni_confirm" / "dimissioni_cancel") sono
-// gestite in interactions.ts, agganciate ai bottoni pubblicati sopra.
+// ── Helper interno: aggiorna il pannello listalavori se già pubblicato ────────
+async function updateListalavoriIfPublished(client: import("discord.js").Client): Promise<void> {
+  const { updateListalavoriPanel } = await import("../utils.js");
+  await updateListalavoriPanel(client);
+}
