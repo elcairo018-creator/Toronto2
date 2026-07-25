@@ -1358,7 +1358,10 @@ export async function handleSelectMenu(
           return null;
         }));
 
-      if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+      const isForumChannel = channel?.type === ChannelType.GuildForum;
+      const isValidChannel = channel && (isForumChannel || (channel.isTextBased() && !channel.isDMBased()));
+
+      if (!isValidChannel) {
         logger.error({ bandoChannelId, jobKey, channel: channel?.id ?? null }, "Canale bando non accessibile");
         return interaction.reply({
           content:
@@ -1374,18 +1377,8 @@ export async function handleSelectMenu(
         .run(userId, jobId, guild.id);
       const bandoAppId = bandoAppResult.lastInsertRowid;
 
-      // 1️⃣ Messaggio intestazione nel canale bando
-      await channel.send({
-        content:
-          `📋 **Bando** <@${userId}>\n\n` +
-          `Copia il seguente template e rispondi alle domande:`,
-      });
-
-      // 2️⃣ Template specifico per il corpo
       const template = getBandoTemplate(matchedBandoKey ?? jobKey, job.name);
-      await channel.send({ content: template });
 
-      // 3️⃣ Messaggio con bottoni accetta/rifiuta (solo staff può usarli)
       const staffRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`job_accept:${bandoAppId}`)
@@ -1396,10 +1389,38 @@ export async function handleSelectMenu(
           .setLabel("❌ Rifiuta")
           .setStyle(ButtonStyle.Danger),
       );
-      await channel.send({
-        content: `*Staff — gestisci la candidatura di <@${userId}>:*`,
-        components: [staffRow],
-      });
+
+      if (isForumChannel) {
+        // Canale Forum: crea un post (thread) per la candidatura
+        const { ForumChannel } = await import("discord.js");
+        const forum = channel as InstanceType<typeof ForumChannel>;
+        const thread = await forum.threads.create({
+          name: `📋 Bando — ${job.name} | ${interaction.user.username}`,
+          message: {
+            content:
+              `📋 **Bando** <@${userId}>\n\n` +
+              `Copia il seguente template e rispondi alle domande:\n\n` +
+              template,
+          },
+        });
+        await thread.send({
+          content: `*Staff — gestisci la candidatura di <@${userId}>:*`,
+          components: [staffRow],
+        });
+      } else {
+        // Canale testo normale
+        const textChannel = channel as import("discord.js").GuildTextBasedChannel;
+        await textChannel.send({
+          content:
+            `📋 **Bando** <@${userId}>\n\n` +
+            `Copia il seguente template e rispondi alle domande:`,
+        });
+        await textChannel.send({ content: template });
+        await textChannel.send({
+          content: `*Staff — gestisci la candidatura di <@${userId}>:*`,
+          components: [staffRow],
+        });
+      }
 
       return interaction.reply({
         content:
