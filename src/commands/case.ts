@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  AttachmentBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import db, { type House } from "../db.js";
@@ -54,22 +55,59 @@ export async function pannellocaseHandler(interaction: ChatInputCommandInteracti
   await sendPanel(interaction, { embeds, components: rows.slice(0, 5) });
 }
 
+// ── /creacasa ─────────────────────────────────────────────────────────────────
 export const creacasaData = new SlashCommandBuilder()
   .setName("creacasa")
   .setDescription("Aggiungi una casa in vendita (solo proprietario / agenzia)")
   .addStringOption((o) => o.setName("nome").setDescription("Nome della casa").setRequired(true))
   .addIntegerOption((o) => o.setName("prezzo").setDescription("Prezzo in €").setRequired(true).setMinValue(0))
-  .addStringOption((o) =>
-    o.setName("immagine").setDescription("URL dell'immagine da mostrare nel pannello (opzionale)").setRequired(false),
+  .addAttachmentOption((o) =>
+    o.setName("immagine").setDescription("Foto della casa (jpg/png)").setRequired(false),
   );
 
 export async function creacasaHandler(interaction: ChatInputCommandInteraction) {
   if (!canManageHouses(interaction)) {
     return interaction.reply({ content: "❌ Non hai i permessi per aggiungere case.", ephemeral: true });
   }
-  const nome     = interaction.options.getString("nome", true);
-  const prezzo   = interaction.options.getInteger("prezzo", true);
-  const imageUrl = interaction.options.getString("immagine") ?? null;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const nome       = interaction.options.getString("nome", true);
+  const prezzo     = interaction.options.getInteger("prezzo", true);
+  const attachment = interaction.options.getAttachment("immagine");
+
+  let imageUrl: string | null = null;
+
+  if (attachment) {
+    const storageChannelId = process.env.CASE_IMAGES_CHANNEL_ID;
+
+    if (storageChannelId) {
+      try {
+        // Scarica il file dall'URL temporaneo di Discord
+        const res = await fetch(attachment.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const file   = new AttachmentBuilder(buffer, { name: attachment.name });
+
+        // Ri-carica nel canale di archivio → ottieni URL CDN permanente
+        const storageChannel = await interaction.client.channels.fetch(storageChannelId);
+        if (storageChannel && "send" in storageChannel) {
+          const msg = await (storageChannel as any).send({
+            content: `[archivio] ${nome}`,
+            files: [file],
+          });
+          imageUrl = msg.attachments.first()?.url ?? null;
+        }
+      } catch (err) {
+        // Fallback: usa l'URL temporaneo (scadrà, ma meglio di niente)
+        imageUrl = attachment.url;
+        console.error("[creacasa] Errore archiviazione immagine:", err);
+      }
+    } else {
+      // Nessun canale archivio configurato — usa URL diretto (temporaneo)
+      imageUrl = attachment.url;
+    }
+  }
 
   db.prepare("INSERT INTO houses (name, price, imageUrl) VALUES (?, ?, ?)").run(nome, prezzo, imageUrl);
 
@@ -77,17 +115,18 @@ export async function creacasaHandler(interaction: ChatInputCommandInteraction) 
     .setTitle("✅ Casa Aggiunta")
     .setColor(COLORS.success)
     .addFields(
-      { name: "Nome",   value: nome,           inline: true },
-      { name: "Prezzo", value: `€${prezzo}`,   inline: true },
+      { name: "Nome",   value: nome,         inline: true },
+      { name: "Prezzo", value: `€${prezzo}`, inline: true },
     )
     .setFooter(FOOTER)
     .setTimestamp();
 
   if (imageUrl) embed.setImage(imageUrl);
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.editReply({ embeds: [embed] });
 }
 
+// ── /eliminacasa ──────────────────────────────────────────────────────────────
 export const eliminacasaData = new SlashCommandBuilder()
   .setName("eliminacasa")
   .setDescription("Rimuovi una casa in vendita (solo proprietario / agenzia)")
