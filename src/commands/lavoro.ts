@@ -163,7 +163,7 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
       .setFooter(FOOTER)
       .setTimestamp();
 
-    saveJobsSeed();
+    await saveJobsSeed();
     // Aggiorna il pannello listalavori se pubblicato
     await updateListalavoriIfPublished(interaction.client);
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -191,7 +191,7 @@ export async function crealavoriHandler(interaction: ChatInputCommandInteraction
     .setFooter(FOOTER)
     .setTimestamp();
 
-  saveJobsSeed();
+  await saveJobsSeed();
   await updateListalavoriIfPublished(interaction.client);
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
@@ -323,7 +323,7 @@ export async function eliminalavoroHandler(interaction: ChatInputCommandInteract
   }
 
   db.prepare("DELETE FROM jobs WHERE id = ?").run(job.id);
-  saveJobsSeed();
+  await saveJobsSeed();
   await updateListalavoriIfPublished(interaction.client);
 
   const embed = new EmbedBuilder()

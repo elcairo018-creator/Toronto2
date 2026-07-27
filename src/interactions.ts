@@ -485,13 +485,23 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "job_accept") {
-    const appId = args[0];
-    const app = db
-      .prepare("SELECT * FROM applications WHERE id = ?")
-      .get(appId) as Application | undefined;
-    if (!app || app.status !== "pending") {
+    const appId = Number(args[0]);
+    if (!Number.isSafeInteger(appId) || appId <= 0) {
       return interaction.reply({
-        content: "❌ Candidatura non trovata o già gestita.",
+        content: "❌ ID candidatura non valido. Questo pulsante è corrotto o obsoleto.",
+        ephemeral: true,
+      });
+    }
+
+    const app = db
+      .prepare(
+        "SELECT * FROM applications WHERE id = ? AND status IN ('pending', 'bando')",
+      )
+      .get(appId) as Application | undefined;
+    if (!app) {
+      return interaction.reply({
+        content:
+          "❌ Candidatura non trovata o già gestita. Se il bando è stato creato prima dell'ultimo riavvio del bot, ricrealo.",
         ephemeral: true,
       });
     }
@@ -527,9 +537,17 @@ export async function handleButton(interaction: ButtonInteraction) {
     }
 
     const accepted = db.transaction(() => {
+      const freshApp = db
+        .prepare(
+          "SELECT * FROM applications WHERE id = ? AND status IN ('pending', 'bando')",
+        )
+        .get(appId) as Application | undefined;
+      if (!freshApp) return false;
+
       const freshJob = db
         .prepare("SELECT * FROM jobs WHERE id = ?")
         .get(app.jobId) as Job;
+      if (!freshJob) return false;
       if (
         freshJob.maxSlots !== null &&
         freshJob.currentSlots >= freshJob.maxSlots
@@ -540,13 +558,13 @@ export async function handleButton(interaction: ButtonInteraction) {
         .prepare(
           "INSERT OR IGNORE INTO employees (userId, jobId) VALUES (?, ?)",
         )
-        .run(app.userId, app.jobId);
+        .run(freshApp.userId, freshApp.jobId);
       if (ins.changes === 0) return false;
       db.prepare(
         "UPDATE jobs SET currentSlots = currentSlots + 1 WHERE id = ?",
-      ).run(app.jobId);
+      ).run(freshApp.jobId);
       db.prepare(
-        "UPDATE applications SET status = 'accepted' WHERE id = ?",
+        "UPDATE applications SET status = 'accepted' WHERE id = ? AND status IN ('pending', 'bando')",
       ).run(appId);
       return true;
     })();
@@ -595,13 +613,23 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "job_reject") {
-    const appId = args[0];
-    const app = db
-      .prepare("SELECT * FROM applications WHERE id = ?")
-      .get(appId) as Application | undefined;
-    if (!app || app.status !== "pending") {
+    const appId = Number(args[0]);
+    if (!Number.isSafeInteger(appId) || appId <= 0) {
       return interaction.reply({
-        content: "❌ Candidatura non trovata o già gestita.",
+        content: "❌ ID candidatura non valido. Questo pulsante è corrotto o obsoleto.",
+        ephemeral: true,
+      });
+    }
+
+    const app = db
+      .prepare(
+        "SELECT * FROM applications WHERE id = ? AND status IN ('pending', 'bando')",
+      )
+      .get(appId) as Application | undefined;
+    if (!app) {
+      return interaction.reply({
+        content:
+          "❌ Candidatura non trovata o già gestita. Se il bando è stato creato prima dell'ultimo riavvio del bot, ricrealo.",
         ephemeral: true,
       });
     }
@@ -629,9 +657,17 @@ export async function handleButton(interaction: ButtonInteraction) {
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(app.jobId) as
       | Job
       | undefined;
-    db.prepare("UPDATE applications SET status = 'rejected' WHERE id = ?").run(
-      appId,
-    );
+    const rejectResult = db
+      .prepare(
+        "UPDATE applications SET status = 'rejected' WHERE id = ? AND status IN ('pending', 'bando')",
+      )
+      .run(appId);
+    if (rejectResult.changes === 0) {
+      return interaction.reply({
+        content: "❌ Candidatura già gestita da un altro membro dello staff.",
+        ephemeral: true,
+      });
+    }
 
     try {
       const guild = await interaction.client.guilds.fetch(app.guildId);
@@ -1352,7 +1388,9 @@ export async function handleSelectMenu(
 
       // Salva candidatura nel DB
       const bandoAppResult = db
-        .prepare("INSERT INTO applications (userId, jobId, guildId) VALUES (?, ?, ?)")
+        .prepare(
+          "INSERT INTO applications (userId, jobId, guildId, status) VALUES (?, ?, ?, 'bando')",
+        )
         .run(userId, jobId, guild.id);
       const bandoAppId = bandoAppResult.lastInsertRowid;
 

@@ -7,6 +7,8 @@ import { logger } from "./logger.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "..", "bot.db");
 const JOBS_SEED_PATH = path.join(__dirname, "..", "jobs_seed.json");
+const JOBS_SEED_REPO = process.env.GITHUB_REPO ?? "elcairo018-creator/Toronto2";
+const JOBS_SEED_BRANCH = process.env.GITHUB_BRANCH ?? "main";
 
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
@@ -179,30 +181,34 @@ try {
 }
 
 // ── Esporta snapshot dei lavori in jobs_seed.json e su GitHub ─────────────────
-export function saveJobsSeed(): void {
-  try {
-    const jobs = db
-      .prepare("SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs")
-      .all();
-    const content = JSON.stringify(jobs, null, 2);
-    fs.writeFileSync(JOBS_SEED_PATH, content, "utf-8");
-    logger.info("jobs_seed.json aggiornato (locale)");
-    // Push asincrono su GitHub — non blocca il bot se fallisce
-    pushJobsSeedToGitHub(content).catch((err) =>
-      logger.error({ err }, "Errore push jobs_seed.json su GitHub"),
-    );
-  } catch (err) {
-    logger.error({ err }, "Errore salvataggio seed lavori");
-  }
+// Le richieste sono accodate: due comandi /crealavoro eseguiti quasi insieme
+// non possono sovrascriversi usando lo stesso SHA del file GitHub.
+let jobsSeedPushQueue: Promise<void> = Promise.resolve();
+
+export function saveJobsSeed(): Promise<void> {
+  const jobs = db
+    .prepare(
+      "SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs",
+    )
+    .all();
+  const content = JSON.stringify(jobs, null, 2);
+  fs.writeFileSync(JOBS_SEED_PATH, content, "utf-8");
+  logger.info("jobs_seed.json aggiornato (locale)");
+
+  const push = jobsSeedPushQueue.then(() => pushJobsSeedToGitHub(content));
+  jobsSeedPushQueue = push.catch(() => undefined);
+  return push;
 }
 
 async function pushJobsSeedToGitHub(content: string): Promise<void> {
   const token = process.env.GITHUB_TOKEN;
-  const repo = process.env.GITHUB_REPO; // es: "elcairo018-creator/Toronto2"
-  if (!token || !repo) return;
+  if (!token) {
+    throw new Error(
+      "GITHUB_TOKEN non configurato: impossibile salvare i lavori su GitHub",
+    );
+  }
 
-  const branch = process.env.GITHUB_BRANCH ?? "main";
-  const apiBase = `https://api.github.com/repos/${repo}/contents/jobs_seed.json`;
+  const apiBase = `https://api.github.com/repos/${JOBS_SEED_REPO}/contents/jobs_seed.json`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -211,19 +217,20 @@ async function pushJobsSeedToGitHub(content: string): Promise<void> {
   };
 
   // Recupera SHA del file attuale (necessario per aggiornarlo)
+  const getRes = await fetch(`${apiBase}?ref=${JOBS_SEED_BRANCH}`, { headers });
   let sha: string | undefined;
-  try {
-    const getRes = await fetch(`${apiBase}?ref=${branch}`, { headers });
-    if (getRes.ok) {
-      const data = (await getRes.json()) as { sha?: string };
-      sha = data.sha;
-    }
-  } catch { /* file non esiste ancora — primo push */ }
+  if (getRes.ok) {
+    const data = (await getRes.json()) as { sha?: string };
+    sha = data.sha;
+  } else if (getRes.status !== 404) {
+    const text = await getRes.text();
+    throw new Error(`GitHub API ${getRes.status}: ${text}`);
+  }
 
   const body: Record<string, unknown> = {
     message: "chore: aggiorna jobs_seed.json [skip ci]",
     content: Buffer.from(content).toString("base64"),
-    branch,
+    branch: JOBS_SEED_BRANCH,
   };
   if (sha) body.sha = sha;
 
