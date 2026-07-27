@@ -58,9 +58,10 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS houses (
-    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    name  TEXT NOT NULL,
-    price INTEGER NOT NULL
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name     TEXT NOT NULL,
+    price    INTEGER NOT NULL,
+    imageUrl TEXT
   );
 
   CREATE TABLE IF NOT EXISTS owned_houses (
@@ -142,6 +143,12 @@ try {
 try {
   db.prepare("ALTER TABLE jobs ADD COLUMN candidatureChannelId TEXT").run();
   logger.info("Migrazione jobs: aggiunta colonna candidatureChannelId");
+} catch { /* colonna già presente — ignora */ }
+
+// ── Migrazione: aggiungi imageUrl a houses se non esiste ──────────────────────
+try {
+  db.prepare("ALTER TABLE houses ADD COLUMN imageUrl TEXT").run();
+  logger.info("Migrazione houses: aggiunta colonna imageUrl");
 } catch { /* colonna già presente — ignora */ }
 
 // ── Carica lavori dal seed se la tabella è vuota ──────────────────────────────
@@ -284,6 +291,7 @@ export interface House {
   id: number;
   name: string;
   price: number;
+  imageUrl: string | null;
 }
 
 export interface Shop {

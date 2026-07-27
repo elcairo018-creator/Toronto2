@@ -13,6 +13,7 @@ export const OWNER_ROLE_ID          = "1141049314433573044";
 export const CONCESSIONARIO_ROLE_ID = "1524387712512299150";
 export const LAVORI_CHANNEL_ID      = "1521494153127788576";
 export const POSTINO_ROLE_ID        = "1523060050451632309";
+export const AGENZIA_USER_ID        = "1435307825198010519";
 
 // ── Palette & stile globale Toronto RP ───────────────────────────────────────
 export const COLORS = {
@@ -136,6 +137,12 @@ export function isAdmin(interaction: ChatInputCommandInteraction): boolean {
     ((m.roles as string[]).includes(STAFF_ROLE_ID) ||
       (m.roles as string[]).includes(OWNER_ROLE_ID))
   );
+}
+
+/** isAdmin + utente Agenzia Immobiliare (per gestione case). */
+export function canManageHouses(interaction: ChatInputCommandInteraction): boolean {
+  if (isAdmin(interaction)) return true;
+  return interaction.user.id === AGENZIA_USER_ID;
 }
 
 /** isAdmin + ruolo Concessionario (per gestione auto). */

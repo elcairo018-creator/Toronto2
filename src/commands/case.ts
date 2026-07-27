@@ -7,7 +7,7 @@ import {
   type ChatInputCommandInteraction,
 } from "discord.js";
 import db, { type House } from "../db.js";
-import { isAdmin, sendPanel } from "../utils.js";
+import { canManageHouses, sendPanel, COLORS, FOOTER } from "../utils.js";
 
 export const pannellocaseData = new SlashCommandBuilder()
   .setName("pannellocase")
@@ -16,72 +16,85 @@ export const pannellocaseData = new SlashCommandBuilder()
 export async function pannellocaseHandler(interaction: ChatInputCommandInteraction) {
   const houses = db.prepare("SELECT * FROM houses ORDER BY price ASC").all() as House[];
 
-  const embed = new EmbedBuilder()
-    .setTitle("🏠 Agenzia Immobiliare")
-    .setColor(0xEB459E)
-    .setDescription(houses.length === 0 ? "Nessuna casa disponibile al momento." : "Scegli una casa da acquistare!")
-    .setTimestamp();
-
   if (houses.length === 0) {
+    const embed = new EmbedBuilder()
+      .setTitle("🏠 Agenzia Immobiliare — Toronto RP")
+      .setColor(0xEB459E)
+      .setDescription("Nessuna casa disponibile al momento.")
+      .setFooter(FOOTER)
+      .setTimestamp();
     return sendPanel(interaction, { embeds: [embed] });
   }
 
+  // Una embed per ogni casa (con immagine se presente), bottone acquisto sotto
+  const embeds: EmbedBuilder[] = [];
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  const chunks: House[][] = [];
-  for (let i = 0; i < houses.length; i += 5) chunks.push(houses.slice(i, i + 5));
 
-  for (const chunk of chunks.slice(0, 5)) {
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      chunk.map((h) =>
+  for (const h of houses.slice(0, 10)) {
+    const embed = new EmbedBuilder()
+      .setTitle(`🏠 ${h.name}`)
+      .setColor(0xEB459E)
+      .addFields({ name: "💰 Prezzo", value: `€${h.price}`, inline: true })
+      .setFooter(FOOTER);
+
+    if (h.imageUrl) embed.setImage(h.imageUrl);
+
+    embeds.push(embed);
+
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`house_buy:${h.id}`)
-          .setLabel(`${h.name} — €${h.price}`)
-          .setStyle(ButtonStyle.Secondary)
-      )
+          .setLabel(`🛒 Acquista ${h.name}`)
+          .setStyle(ButtonStyle.Primary),
+      ),
     );
-    rows.push(row);
   }
 
-  houses.forEach((h) =>
-    embed.addFields({ name: `🏠 ${h.name}`, value: `Prezzo: **€${h.price}**`, inline: true })
-  );
-
-  await sendPanel(interaction, { embeds: [embed], components: rows });
+  await sendPanel(interaction, { embeds, components: rows.slice(0, 5) });
 }
 
 export const creacasaData = new SlashCommandBuilder()
   .setName("creacasa")
-  .setDescription("Aggiungi una casa in vendita (solo proprietario)")
+  .setDescription("Aggiungi una casa in vendita (solo proprietario / agenzia)")
   .addStringOption((o) => o.setName("nome").setDescription("Nome della casa").setRequired(true))
-  .addIntegerOption((o) => o.setName("prezzo").setDescription("Prezzo").setRequired(true).setMinValue(0));
+  .addIntegerOption((o) => o.setName("prezzo").setDescription("Prezzo in €").setRequired(true).setMinValue(0))
+  .addStringOption((o) =>
+    o.setName("immagine").setDescription("URL dell'immagine da mostrare nel pannello (opzionale)").setRequired(false),
+  );
 
 export async function creacasaHandler(interaction: ChatInputCommandInteraction) {
-  if (!isAdmin(interaction)) {
+  if (!canManageHouses(interaction)) {
     return interaction.reply({ content: "❌ Non hai i permessi per aggiungere case.", ephemeral: true });
   }
-  const nome = interaction.options.getString("nome", true);
-  const prezzo = interaction.options.getInteger("prezzo", true);
-  db.prepare("INSERT INTO houses (name, price) VALUES (?, ?)").run(nome, prezzo);
+  const nome     = interaction.options.getString("nome", true);
+  const prezzo   = interaction.options.getInteger("prezzo", true);
+  const imageUrl = interaction.options.getString("immagine") ?? null;
+
+  db.prepare("INSERT INTO houses (name, price, imageUrl) VALUES (?, ?, ?)").run(nome, prezzo, imageUrl);
 
   const embed = new EmbedBuilder()
     .setTitle("✅ Casa Aggiunta")
-    .setColor(0x57F287)
+    .setColor(COLORS.success)
     .addFields(
-      { name: "Nome", value: nome, inline: true },
-      { name: "Prezzo", value: `€${prezzo}`, inline: true },
+      { name: "Nome",   value: nome,           inline: true },
+      { name: "Prezzo", value: `€${prezzo}`,   inline: true },
     )
+    .setFooter(FOOTER)
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  if (imageUrl) embed.setImage(imageUrl);
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 export const eliminacasaData = new SlashCommandBuilder()
   .setName("eliminacasa")
-  .setDescription("Rimuovi una casa in vendita (solo proprietario)")
+  .setDescription("Rimuovi una casa in vendita (solo proprietario / agenzia)")
   .addStringOption((o) => o.setName("nome").setDescription("Nome della casa da rimuovere").setRequired(true));
 
 export async function eliminacasaHandler(interaction: ChatInputCommandInteraction) {
-  if (!isAdmin(interaction)) {
+  if (!canManageHouses(interaction)) {
     return interaction.reply({ content: "❌ Non hai i permessi per rimuovere case.", ephemeral: true });
   }
   const nome = interaction.options.getString("nome", true);

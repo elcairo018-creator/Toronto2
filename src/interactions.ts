@@ -1180,7 +1180,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     }
     const house = db
       .prepare("SELECT * FROM houses WHERE id = ?")
-      .get(houseId) as { id: number; name: string; price: number } | undefined;
+      .get(houseId) as { id: number; name: string; price: number; imageUrl: string | null } | undefined;
     if (!house) {
       return interaction.reply({
         content: "❌ Casa non trovata.",
@@ -1201,15 +1201,13 @@ export async function handleButton(interaction: ButtonInteraction) {
       .setTitle("🏠 Acquisto Completato!")
       .setColor(0x57f287)
       .addFields(
-        { name: "Casa", value: house.name, inline: true },
-        { name: "Pagato", value: `€${house.price}`, inline: true },
-        {
-          name: "Nuovo Saldo",
-          value: `€${account.balance - house.price}`,
-          inline: true,
-        },
+        { name: "Casa",        value: house.name,                        inline: true },
+        { name: "Pagato",      value: `€${house.price}`,                 inline: true },
+        { name: "Nuovo Saldo", value: `€${account.balance - house.price}`, inline: true },
       )
       .setTimestamp();
+
+    if (house.imageUrl) embed.setThumbnail(house.imageUrl);
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
