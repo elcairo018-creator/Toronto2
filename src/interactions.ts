@@ -472,7 +472,7 @@ export async function handleButton(interaction: ButtonInteraction) {
               : "";
             return new StringSelectMenuOptionBuilder()
               .setLabel(j.name)
-              .setDescription(`💰 €${j.salary}/gg  ${dot}${posti}`)
+              .setDescription(`💰 €${j.salary}/mese  ${dot}${posti}`)
               .setValue(String(j.id));
           }),
       );

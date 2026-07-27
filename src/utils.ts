@@ -56,7 +56,7 @@ export function buildListalavoriEmbed(): EmbedBuilder {
           const slot = j.maxSlots !== null
             ? ` ﹒ **${j.maxSlots - j.currentSlots}** posto/i libero/i`
             : "";
-          return `: ̗̀➛ ${j.name} — 💰 €${j.salary}/gg ${dot}${slot}`;
+          return `: ̗̀➛ ${j.name} — 💰 €${j.salary}/mese ${dot}${slot}`;
         })
       : ["*Nessun lavoro disponibile al momento.*"];
 
