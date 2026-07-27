@@ -464,11 +464,17 @@ export async function handleButton(interaction: ButtonInteraction) {
       .addOptions(
         jobs
           .slice(0, 25)
-          .map((j) =>
-            new StringSelectMenuOptionBuilder()
+          .map((j) => {
+            const disp = j.maxSlots === null || j.currentSlots < j.maxSlots;
+            const dot  = disp ? "🟢" : "🔴";
+            const posti = j.maxSlots !== null
+              ? ` · ${j.maxSlots - j.currentSlots} posto/i`
+              : "";
+            return new StringSelectMenuOptionBuilder()
               .setLabel(j.name)
-              .setValue(String(j.id)),
-          ),
+              .setDescription(`💰 €${j.salary}/gg  ${dot}${posti}`)
+              .setValue(String(j.id));
+          }),
       );
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -1245,38 +1251,13 @@ export async function handleButton(interaction: ButtonInteraction) {
   }
 
   if (action === "pagamento_open") {
-    const modal = new ModalBuilder()
-      .setCustomId("pagamento_modal")
-      .setTitle("Invia Pagamento");
-
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId("recipient_id")
-          .setLabel("ID Discord del destinatario")
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder("Es: 123456789012345678")
-          .setRequired(true),
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId("amount")
-          .setLabel("Importo (€)")
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder("Es: 500")
-          .setRequired(true),
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId("causale")
-          .setLabel("Causale")
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder("Es: Affitto")
-          .setRequired(false),
-      ),
-    );
-
-    return interaction.showModal(modal);
+    return interaction.reply({
+      content:
+        "💸 Per inviare denaro usa il comando:\n" +
+        "> `/paga @utente importo causale`\n\n" +
+        "Esempio: `/paga @Mario 500 Affitto`",
+      ephemeral: true,
+    });
   }
 }
 

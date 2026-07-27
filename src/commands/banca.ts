@@ -9,6 +9,98 @@ import {
 import db, { type Account, type Card } from "../db.js";
 import { isAdmin, sendPanel, COLORS, FOOTER } from "../utils.js";
 
+// ── /paga ─────────────────────────────────────────────────────────────────────
+export const pagaData = new SlashCommandBuilder()
+  .setName("paga")
+  .setDescription("Invia denaro a un altro utente taggandolo")
+  .addUserOption((o) =>
+    o.setName("destinatario").setDescription("Tagga l'utente a cui vuoi inviare denaro").setRequired(true),
+  )
+  .addIntegerOption((o) =>
+    o.setName("importo").setDescription("Importo in € da inviare").setRequired(true).setMinValue(1),
+  )
+  .addStringOption((o) =>
+    o.setName("causale").setDescription("Motivo del pagamento (opzionale)").setRequired(false),
+  );
+
+export async function pagaHandler(interaction: ChatInputCommandInteraction) {
+  const recipient = interaction.options.getUser("destinatario", true);
+  const amount    = interaction.options.getInteger("importo", true);
+  const causale   = interaction.options.getString("causale") ?? "Nessuna causale";
+
+  if (recipient.id === interaction.user.id) {
+    return interaction.reply({ content: "❌ Non puoi inviare denaro a te stesso.", ephemeral: true });
+  }
+  if (recipient.bot) {
+    return interaction.reply({ content: "❌ Non puoi inviare denaro a un bot.", ephemeral: true });
+  }
+
+  const senderAccount = db
+    .prepare("SELECT * FROM accounts WHERE userId = ?")
+    .get(interaction.user.id) as Account | undefined;
+  if (!senderAccount) {
+    return interaction.reply({
+      content: "❌ Non hai un conto bancario. Aprilo dal pannello 🏦 Banca.",
+      ephemeral: true,
+    });
+  }
+  if (senderAccount.balance < amount) {
+    return interaction.reply({
+      content: `❌ Saldo insufficiente. Hai **€${senderAccount.balance}**.`,
+      ephemeral: true,
+    });
+  }
+
+  const recipientAccount = db
+    .prepare("SELECT * FROM accounts WHERE userId = ?")
+    .get(recipient.id) as Account | undefined;
+  if (!recipientAccount) {
+    return interaction.reply({
+      content: `❌ <@${recipient.id}> non ha un conto bancario.`,
+      ephemeral: true,
+    });
+  }
+
+  // Esegui il trasferimento
+  db.prepare("UPDATE accounts SET balance = balance - ? WHERE userId = ?").run(amount, interaction.user.id);
+  db.prepare("UPDATE accounts SET balance = balance + ? WHERE userId = ?").run(amount, recipient.id);
+  db.prepare(
+    "INSERT INTO transactions (fromId, toId, amount, note) VALUES (?, ?, ?, ?)",
+  ).run(interaction.user.id, recipient.id, amount, causale);
+
+  const embedMittente = new EmbedBuilder()
+    .setTitle("💸 Pagamento Inviato")
+    .setColor(COLORS.success)
+    .addFields(
+      { name: "Destinatario", value: `<@${recipient.id}>`, inline: true },
+      { name: "Importo",      value: `€${amount}`,         inline: true },
+      { name: "Causale",      value: causale,               inline: false },
+      { name: "Nuovo Saldo",  value: `€${senderAccount.balance - amount}`, inline: true },
+    )
+    .setFooter(FOOTER)
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embedMittente], ephemeral: true });
+
+  // Notifica DM al destinatario
+  try {
+    await recipient.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("💰 Pagamento Ricevuto!")
+          .setColor(COLORS.success)
+          .addFields(
+            { name: "Da",      value: `<@${interaction.user.id}> (${interaction.user.username})`, inline: false },
+            { name: "Importo", value: `€${amount}`,  inline: true },
+            { name: "Causale", value: causale,        inline: true },
+          )
+          .setFooter(FOOTER)
+          .setTimestamp(),
+      ],
+    });
+  } catch { /* DM chiusi — ignora */ }
+}
+
 export function randomDigits(n: number) {
   return Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
 }

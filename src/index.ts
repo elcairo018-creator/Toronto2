@@ -15,6 +15,7 @@ import {
   apricontoData, apricontoHandler,
   mostracontoData, mostracontoHandler,
   pannellocontoData, pannellocontoHandler,
+  pagaData, pagaHandler,
 } from "./commands/banca.js";
 
 import {
@@ -65,6 +66,7 @@ function reg(data: SlashCommandOptionsOnlyBuilder, handler: CommandHandler) {
 reg(apricontoData, apricontoHandler);
 reg(mostracontoData, mostracontoHandler);
 reg(pannellocontoData, pannellocontoHandler);
+reg(pagaData, pagaHandler);
 reg(stipendioData, stipendioHandler);
 reg(dimissioniData, dimissioniHandler);
 reg(pannellolavoriData, pannellolavoriHandler);
