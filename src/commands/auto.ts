@@ -6,7 +6,7 @@ import {
   ActionRowBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
-import db, { type Car } from "../db.js";
+import db, { type Car, saveCarsSeed } from "../db.js";
 import { canManageCars, sendPanel } from "../utils.js";
 
 export const pannelloautoData = new SlashCommandBuilder()
@@ -62,6 +62,7 @@ export async function creaautoHandler(interaction: ChatInputCommandInteraction) 
   const nome = interaction.options.getString("nome", true);
   const prezzo = interaction.options.getInteger("prezzo", true);
   db.prepare("INSERT INTO cars (name, price) VALUES (?, ?)").run(nome, prezzo);
+  await saveCarsSeed();
 
   const embed = new EmbedBuilder()
     .setTitle("✅ Auto Aggiunta")
@@ -90,5 +91,6 @@ export async function eliminaautoHandler(interaction: ChatInputCommandInteractio
   if (result.changes === 0) {
     return interaction.reply({ content: `❌ Auto "${nome}" non trovata.`, ephemeral: true });
   }
+  await saveCarsSeed();
   await interaction.reply({ content: `✅ Auto **${nome}** rimossa.`, ephemeral: true });
 }

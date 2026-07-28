@@ -6,9 +6,11 @@ import { logger } from "./logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "..", "bot.db");
-const JOBS_SEED_PATH = path.join(__dirname, "..", "jobs_seed.json");
-const JOBS_SEED_REPO = process.env.GITHUB_REPO ?? "elcairo018-creator/Toronto2";
-const JOBS_SEED_BRANCH = process.env.GITHUB_BRANCH ?? "main";
+const JOBS_SEED_PATH  = path.join(__dirname, "..", "jobs_seed.json");
+const CARS_SEED_PATH  = path.join(__dirname, "..", "cars_seed.json");
+const HOUSES_SEED_PATH = path.join(__dirname, "..", "houses_seed.json");
+const SEED_REPO   = process.env.GITHUB_REPO   ?? "elcairo018-creator/Toronto2";
+const SEED_BRANCH = process.env.GITHUB_BRANCH ?? "main";
 
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
@@ -180,35 +182,80 @@ try {
   logger.error({ err }, "Errore caricamento seed lavori");
 }
 
-// ── Esporta snapshot dei lavori in jobs_seed.json e su GitHub ─────────────────
-// Le richieste sono accodate: due comandi /crealavoro eseguiti quasi insieme
-// non possono sovrascriversi usando lo stesso SHA del file GitHub.
-let jobsSeedPushQueue: Promise<void> = Promise.resolve();
+// ── Carica auto dal seed se la tabella è vuota ────────────────────────────────
+try {
+  const carCount = (db.prepare("SELECT COUNT(*) as n FROM cars").get() as { n: number }).n;
+  if (carCount === 0 && fs.existsSync(CARS_SEED_PATH)) {
+    const seed = JSON.parse(fs.readFileSync(CARS_SEED_PATH, "utf-8")) as Array<{ name: string; price: number }>;
+    const insert = db.prepare("INSERT OR IGNORE INTO cars (name, price) VALUES (?, ?)");
+    db.transaction((rows: typeof seed) => { for (const r of rows) insert.run(r.name, r.price); })(seed);
+    logger.info(`Caricate ${seed.length} auto da cars_seed.json`);
+  }
+} catch (err) {
+  logger.error({ err }, "Errore caricamento seed auto");
+}
 
+// ── Carica case dal seed se la tabella è vuota ────────────────────────────────
+try {
+  const houseCount = (db.prepare("SELECT COUNT(*) as n FROM houses").get() as { n: number }).n;
+  if (houseCount === 0 && fs.existsSync(HOUSES_SEED_PATH)) {
+    const seed = JSON.parse(fs.readFileSync(HOUSES_SEED_PATH, "utf-8")) as Array<{ name: string; price: number; imageUrl: string | null }>;
+    const insert = db.prepare("INSERT OR IGNORE INTO houses (name, price, imageUrl) VALUES (?, ?, ?)");
+    db.transaction((rows: typeof seed) => { for (const r of rows) insert.run(r.name, r.price, r.imageUrl ?? null); })(seed);
+    logger.info(`Caricate ${seed.length} case da houses_seed.json`);
+  }
+} catch (err) {
+  logger.error({ err }, "Errore caricamento seed case");
+}
+
+// ── Salvataggio seed su GitHub ────────────────────────────────────────────────
+// Ogni tipo di seed ha la propria coda per evitare conflitti di SHA concorrenti.
+let jobsSeedQueue:   Promise<void> = Promise.resolve();
+let carsSeedQueue:   Promise<void> = Promise.resolve();
+let housesSeedQueue: Promise<void> = Promise.resolve();
+
+/** Salva i lavori localmente e su GitHub. Attendi il risultato per conferma. */
 export function saveJobsSeed(): Promise<void> {
-  const jobs = db
-    .prepare(
-      "SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs",
-    )
+  const rows = db
+    .prepare("SELECT name, roleId, salary, maxSlots, candidatureChannelId FROM jobs")
     .all();
-  const content = JSON.stringify(jobs, null, 2);
+  const content = JSON.stringify(rows, null, 2);
   fs.writeFileSync(JOBS_SEED_PATH, content, "utf-8");
   logger.info("jobs_seed.json aggiornato (locale)");
-
-  const push = jobsSeedPushQueue.then(() => pushJobsSeedToGitHub(content));
-  jobsSeedPushQueue = push.catch(() => undefined);
+  const push = jobsSeedQueue.then(() => pushSeedToGitHub("jobs_seed.json", content, "chore: aggiorna jobs_seed.json [skip ci]"));
+  jobsSeedQueue = push.catch(() => undefined);
   return push;
 }
 
-async function pushJobsSeedToGitHub(content: string): Promise<void> {
+/** Salva le auto localmente e su GitHub. Attendi il risultato per conferma. */
+export function saveCarsSeed(): Promise<void> {
+  const rows = db.prepare("SELECT name, price FROM cars").all();
+  const content = JSON.stringify(rows, null, 2);
+  fs.writeFileSync(CARS_SEED_PATH, content, "utf-8");
+  logger.info("cars_seed.json aggiornato (locale)");
+  const push = carsSeedQueue.then(() => pushSeedToGitHub("cars_seed.json", content, "chore: aggiorna cars_seed.json [skip ci]"));
+  carsSeedQueue = push.catch(() => undefined);
+  return push;
+}
+
+/** Salva le case localmente e su GitHub. Attendi il risultato per conferma. */
+export function saveHousesSeed(): Promise<void> {
+  const rows = db.prepare("SELECT name, price, imageUrl FROM houses").all();
+  const content = JSON.stringify(rows, null, 2);
+  fs.writeFileSync(HOUSES_SEED_PATH, content, "utf-8");
+  logger.info("houses_seed.json aggiornato (locale)");
+  const push = housesSeedQueue.then(() => pushSeedToGitHub("houses_seed.json", content, "chore: aggiorna houses_seed.json [skip ci]"));
+  housesSeedQueue = push.catch(() => undefined);
+  return push;
+}
+
+async function pushSeedToGitHub(filename: string, content: string, message: string): Promise<void> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
-    throw new Error(
-      "GITHUB_TOKEN non configurato: impossibile salvare i lavori su GitHub",
-    );
+    throw new Error(`GITHUB_TOKEN non configurato: impossibile salvare ${filename} su GitHub`);
   }
 
-  const apiBase = `https://api.github.com/repos/${JOBS_SEED_REPO}/contents/jobs_seed.json`;
+  const apiBase = `https://api.github.com/repos/${SEED_REPO}/contents/${filename}`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -217,7 +264,7 @@ async function pushJobsSeedToGitHub(content: string): Promise<void> {
   };
 
   // Recupera SHA del file attuale (necessario per aggiornarlo)
-  const getRes = await fetch(`${apiBase}?ref=${JOBS_SEED_BRANCH}`, { headers });
+  const getRes = await fetch(`${apiBase}?ref=${SEED_BRANCH}`, { headers });
   let sha: string | undefined;
   if (getRes.ok) {
     const data = (await getRes.json()) as { sha?: string };
@@ -228,23 +275,18 @@ async function pushJobsSeedToGitHub(content: string): Promise<void> {
   }
 
   const body: Record<string, unknown> = {
-    message: "chore: aggiorna jobs_seed.json [skip ci]",
+    message,
     content: Buffer.from(content).toString("base64"),
-    branch: JOBS_SEED_BRANCH,
+    branch: SEED_BRANCH,
   };
   if (sha) body.sha = sha;
 
-  const putRes = await fetch(apiBase, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(body),
-  });
-
+  const putRes = await fetch(apiBase, { method: "PUT", headers, body: JSON.stringify(body) });
   if (!putRes.ok) {
     const text = await putRes.text();
     throw new Error(`GitHub API ${putRes.status}: ${text}`);
   }
-  logger.info("jobs_seed.json sincronizzato su GitHub");
+  logger.info(`${filename} sincronizzato su GitHub`);
 }
 
 // ── Interfacce TypeScript ─────────────────────────────────────────────────────

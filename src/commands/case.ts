@@ -7,7 +7,7 @@ import {
   AttachmentBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
-import db, { type House } from "../db.js";
+import db, { type House, saveHousesSeed } from "../db.js";
 import { canManageHouses, sendPanel, COLORS, FOOTER } from "../utils.js";
 
 export const pannellocaseData = new SlashCommandBuilder()
@@ -110,6 +110,7 @@ export async function creacasaHandler(interaction: ChatInputCommandInteraction) 
   }
 
   db.prepare("INSERT INTO houses (name, price, imageUrl) VALUES (?, ?, ?)").run(nome, prezzo, imageUrl);
+  await saveHousesSeed();
 
   const embed = new EmbedBuilder()
     .setTitle("✅ Casa Aggiunta")
@@ -142,5 +143,6 @@ export async function eliminacasaHandler(interaction: ChatInputCommandInteractio
   if (result.changes === 0) {
     return interaction.reply({ content: `❌ Casa "${nome}" non trovata.`, ephemeral: true });
   }
+  await saveHousesSeed();
   await interaction.reply({ content: `✅ Casa **${nome}** rimossa.`, ephemeral: true });
 }
